@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'products_screen.dart';
+import 'stocktake_screen.dart';
+import 'results_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -18,33 +21,39 @@ class HomeScreen extends StatelessWidget {
           children: [
             const Icon(Icons.inventory, size: 80, color: Colors.blue),
             const SizedBox(height: 20),
-            const Text('مرحباً بك', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+            const Text(
+              'مرحباً بك',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 40),
             _MenuButton(
               icon: Icons.list_alt,
               label: 'المنتجات',
               color: Colors.blue,
-              onTap: () {
-                // TODO: رح نرجع نفعل هاد بعد ما نفصل ProductsScreen
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ProductsScreen()),
+              ),
             ),
             const SizedBox(height: 16),
             _MenuButton(
               icon: Icons.qr_code_scanner,
               label: 'بدء الجرد',
               color: Colors.green,
-              onTap: () {
-                // TODO: رح نرجع نفعل هاد بعد ما نفصل StocktakeScreen
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const StocktakeScreen()),
+              ),
             ),
             const SizedBox(height: 16),
             _MenuButton(
               icon: Icons.bar_chart,
               label: 'نتائج الجرد',
               color: Colors.orange,
-              onTap: () {
-                // TODO: رح نرجع نفعل هاد بعد ما نفصل ResultsScreen
-              },
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const ResultsScreen()),
+              ),
             ),
           ],
         ),
@@ -58,7 +67,13 @@ class _MenuButton extends StatelessWidget {
   final String label;
   final Color color;
   final VoidCallback onTap;
-  const _MenuButton({required this.icon, required this.label, required this.color, required this.onTap});
+
+  const _MenuButton({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -69,7 +84,10 @@ class _MenuButton extends StatelessWidget {
         onPressed: onTap,
         icon: Icon(icon),
         label: Text(label, style: const TextStyle(fontSize: 18)),
-        style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: color,
+          foregroundColor: Colors.white,
+        ),
       ),
     );
   }
