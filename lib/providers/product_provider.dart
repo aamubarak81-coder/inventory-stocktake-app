@@ -1,98 +1,34 @@
-class ProductModel {
-  final String id;
-  final String orgId;
-  final String? barcode;
-  final String name;
-  final int systemQuantity;
-  final double price;
-  final String? warehouseId;
-  final String? locationRef;
-  final bool isFrozen;
-  final DateTime updatedAt;
-  final String? code;
-  final String? unit;
-  final bool isSynced;
+import 'package:flutter/material.dart';
+import '../models/product_model.dart';
+import '../services/hive_service.dart';
 
-  ProductModel({
-    required this.id,
-    required this.orgId,
-    this.barcode,
-    required this.name,
-    required this.systemQuantity,
-    required this.price,
-    this.warehouseId,
-    this.locationRef,
-    this.isFrozen = false,
-    required this.updatedAt,
-    this.code,
-    this.unit,
-    this.isSynced = false,
-  });
+class ProductProvider extends ChangeNotifier {
+  List<ProductModel> _products = [];
 
-  factory ProductModel.fromJson(Map<String, dynamic> json) {
-    return ProductModel(
-      id: json['id']?.toString() ?? '',
-      orgId: json['org_id']?.toString() ?? '',
-      barcode: json['barcode']?.toString(),
-      name: json['name']?.toString() ?? '',
-      systemQuantity: json['system_quantity'] ?? 0,
-      price: (json['price'] ?? 0).toDouble(),
-      warehouseId: json['warehouse_id']?.toString(),
-      locationRef: json['location_ref']?.toString(),
-      isFrozen: json['is_frozen'] ?? false,
-      updatedAt: json['updated_at'] != null
-          ? DateTime.parse(json['updated_at'])
-          : DateTime.now(),
-      code: json['code']?.toString(),
-      unit: json['unit']?.toString(),
-      isSynced: true,
-    );
+  List<ProductModel> get products => _products;
+
+  // جلب المنتجات من التخزين المحلي (Hive) وعرضها فوراً
+  void loadProducts() {
+    _products = HiveService.getProducts();
+    notifyListeners();
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'org_id': orgId,
-      'barcode': barcode,
-      'name': name,
-      'system_quantity': systemQuantity,
-      'price': price,
-      'warehouse_id': warehouseId,
-      'location_ref': locationRef,
-      'is_frozen': isFrozen,
-      'updated_at': updatedAt.toIso8601String(),
-      'code': code,
-      'unit': unit,
-    };
+  // إضافة منتج جديد
+  Future<void> addProduct(ProductModel product) async {
+    await HiveService.saveProduct(product);
+    loadProducts();
   }
 
-  Map<String, dynamic> toHive() {
-    return {
-      ...toJson(),
-      'isSynced': isSynced,
-    };
+  // تحديث منتج موجود
+  Future<void> updateProduct(ProductModel product) async {
+    await HiveService.saveProduct(product);
+    loadProducts();
   }
 
-  factory ProductModel.fromHive(Map<String, dynamic> map) {
-    return ProductModel(
-      id: map['id']?.toString() ?? '',
-      orgId: map['org_id']?.toString() ?? '',
-      barcode: map['barcode']?.toString(),
-      name: map['name']?.toString() ?? '',
-      systemQuantity: map['system_quantity'] ?? 0,
-      price: (map['price'] ?? 0).toDouble(),
-      warehouseId: map['warehouse_id']?.toString(),
-      locationRef: map['location_ref']?.toString(),
-      isFrozen: map['is_frozen'] ?? false,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : DateTime.now(),
-      code: map['code']?.toString(),
-      unit: map['unit']?.toString(),
-      isSynced: map['isSynced'] ?? false,
-    );
+  // تجميد / إلغاء تجميد منتج أثناء الجرد
+  Future<void> toggleFreeze(ProductModel product) async {
+    product.isFrozen = !product.isFrozen;
+    await HiveService.saveProduct(product);
+    loadProducts();
   }
-
-  bool get isAvailableForStocktake => !isFrozen;
-  String get displayUnit => unit ?? 'piece';
 }
