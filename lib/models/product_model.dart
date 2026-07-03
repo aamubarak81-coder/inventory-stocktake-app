@@ -55,6 +55,9 @@ class ProductModel extends HiveObject {
     required this.lastUpdated,
   });
 
+  // اسم بديل للتوافق مع الكود القديم (نفس systemQuantity)
+  int get quantity => systemQuantity;
+
   // تحويل من بيانات Supabase (JSON) إلى موديل محلي
   factory ProductModel.fromMap(Map<String, dynamic> map) {
     return ProductModel(
@@ -68,7 +71,7 @@ class ProductModel extends HiveObject {
       systemQuantity: map['system_quantity'] ?? 0,
       price: (map['price'] ?? 0).toDouble(),
       isFrozen: map['is_frozen'] ?? false,
-      isSynced: true, // إذا جاي من Supabase فهو متزامن أصلاً
+      isSynced: true,
       lastUpdated: map['last_updated'] != null
           ? DateTime.parse(map['last_updated'])
           : DateTime.now(),
