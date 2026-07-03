@@ -1,4 +1,4 @@
-﻿import 'package:hive/hive.dart';
+import 'package:hive/hive.dart';
 
 part 'product_model.g.dart';
 
@@ -8,48 +8,87 @@ class ProductModel extends HiveObject {
   String id;
 
   @HiveField(1)
-  String barcode;
+  String orgId;
 
   @HiveField(2)
-  String name;
+  String warehouseId;
 
   @HiveField(3)
-  double price;
+  String code;
 
   @HiveField(4)
-  int quantity;
+  String name;
 
   @HiveField(5)
+  String unit;
+
+  @HiveField(6)
+  String barcode;
+
+  @HiveField(7)
+  int systemQuantity;
+
+  @HiveField(8)
+  double price;
+
+  @HiveField(9)
+  bool isFrozen;
+
+  @HiveField(10)
   bool isSynced;
+
+  @HiveField(11)
+  DateTime lastUpdated;
 
   ProductModel({
     required this.id,
-    required this.barcode,
+    required this.orgId,
+    required this.warehouseId,
+    required this.code,
     required this.name,
+    required this.unit,
+    required this.barcode,
+    required this.systemQuantity,
     required this.price,
-    required this.quantity,
+    this.isFrozen = false,
     this.isSynced = false,
+    required this.lastUpdated,
   });
 
+  // تحويل من بيانات Supabase (JSON) إلى موديل محلي
   factory ProductModel.fromMap(Map<String, dynamic> map) {
     return ProductModel(
-      id: map['id'] as String,
-      barcode: map['barcode'] as String,
-      name: map['name'] as String,
-      price: (map['price'] as num).toDouble(),
-      quantity: map['quantity'] as int,
-      isSynced: map['is_synced'] as bool? ?? true,
+      id: map['id'] ?? '',
+      orgId: map['org_id'] ?? '',
+      warehouseId: map['warehouse_id'] ?? '',
+      code: map['code'] ?? '',
+      name: map['name'] ?? '',
+      unit: map['unit'] ?? '',
+      barcode: map['barcode'] ?? '',
+      systemQuantity: map['system_quantity'] ?? 0,
+      price: (map['price'] ?? 0).toDouble(),
+      isFrozen: map['is_frozen'] ?? false,
+      isSynced: true, // إذا جاي من Supabase فهو متزامن أصلاً
+      lastUpdated: map['last_updated'] != null
+          ? DateTime.parse(map['last_updated'])
+          : DateTime.now(),
     );
   }
 
+  // تحويل الموديل المحلي إلى بيانات جاهزة للإرسال لـ Supabase
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'barcode': barcode,
+      'org_id': orgId,
+      'warehouse_id': warehouseId,
+      'code': code,
       'name': name,
+      'unit': unit,
+      'barcode': barcode,
+      'system_quantity': systemQuantity,
       'price': price,
-      'quantity': quantity,
-      'is_synced': isSynced,
+      'is_frozen': isFrozen,
+      'last_updated': lastUpdated.toIso8601String(),
     };
   }
 }
