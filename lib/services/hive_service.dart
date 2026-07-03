@@ -26,6 +26,15 @@ class HiveService {
     await box.put(product.id, product);
   }
 
+  // حفظ عدة منتجات دفعة وحدة (bulk save)
+  static Future<void> saveProducts(List<ProductModel> products) async {
+    final box = Hive.box<ProductModel>(productBoxName);
+    final Map<String, ProductModel> entries = {
+      for (var p in products) p.id: p
+    };
+    await box.putAll(entries);
+  }
+
   static Future<void> deleteProduct(String id) async {
     final box = Hive.box<ProductModel>(productBoxName);
     await box.delete(id);
@@ -51,6 +60,13 @@ class HiveService {
 
   static List<StocktakeModel> getStocktakes() {
     return Hive.box<StocktakeModel>(stocktakeBoxName).values.toList();
+  }
+
+  static List<StocktakeModel> getStocktakesBySession(String sessionId) {
+    return Hive.box<StocktakeModel>(stocktakeBoxName)
+        .values
+        .where((s) => s.sessionId == sessionId)
+        .toList();
   }
 
   static Future<void> saveStocktake(StocktakeModel stocktake) async {
