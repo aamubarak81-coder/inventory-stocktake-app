@@ -1,91 +1,76 @@
-﻿import 'package:hive_flutter/hive_flutter.dart';
+import 'package:hive/hive.dart';
 import '../models/product_model.dart';
 import '../models/stocktake_model.dart';
 
 class HiveService {
-  static const String productsBoxName = 'products';
-  static const String stocktakesBoxName = 'stocktakes';
+  static const String productBoxName = 'products';
+  static const String stocktakeBoxName = 'stocktakes';
 
-  static late Box<ProductModel> _productsBox;
-  static late Box<StocktakeModel> _stocktakesBox;
-
-  static Future<void> init() async {
-    await Hive.initFlutter();
-
-    if (!Hive.isAdapterRegistered(0)) {
-      Hive.registerAdapter(ProductModelAdapter());
-    }
-    if (!Hive.isAdapterRegistered(1)) {
-      Hive.registerAdapter(StocktakeModelAdapter());
-    }
-
-    _productsBox = await Hive.openBox<ProductModel>(productsBoxName);
-    _stocktakesBox = await Hive.openBox<StocktakeModel>(stocktakesBoxName);
-  }
-
-  static Future<void> saveProducts(List<ProductModel> products) async {
-    final Map<String, ProductModel> entries = {
-      for (final product in products) product.id: product,
-    };
-    await _productsBox.putAll(entries);
-  }
+  // ==================== المنتجات ====================
 
   static List<ProductModel> getProducts() {
-    return _productsBox.values.toList();
+    return Hive.box<ProductModel>(productBoxName).values.toList();
   }
 
   static ProductModel? getProductByBarcode(String barcode) {
+    final box = Hive.box<ProductModel>(productBoxName);
     try {
-      return _productsBox.values.firstWhere(
-        (product) => product.barcode == barcode,
-      );
-    } catch (_) {
-      return null;
+      return box.values.firstWhere((p) => p.barcode == barcode);
+    } catch (e) {
+      return null; // ما لقيناش منتج بهاد الباركود
     }
   }
 
+  static Future<void> saveProduct(ProductModel product) async {
+    final box = Hive.box<ProductModel>(productBoxName);
+    await box.put(product.id, product);
+  }
+
+  static Future<void> deleteProduct(String id) async {
+    final box = Hive.box<ProductModel>(productBoxName);
+    await box.delete(id);
+  }
+
   static List<ProductModel> getUnsyncedProducts() {
-    return _productsBox.values.where((product) => !product.isSynced).toList();
+    return Hive.box<ProductModel>(productBoxName)
+        .values
+        .where((p) => !p.isSynced)
+        .toList();
   }
 
   static Future<void> markProductSynced(String id) async {
-    final product = _productsBox.get(id);
+    final box = Hive.box<ProductModel>(productBoxName);
+    final product = box.get(id);
     if (product != null) {
       product.isSynced = true;
       await product.save();
     }
   }
 
-  static Future<void> saveStocktake(StocktakeModel stocktake) async {
-    await _stocktakesBox.put(stocktake.id, stocktake);
-  }
+  // ==================== الجرد (Stocktakes) ====================
 
   static List<StocktakeModel> getStocktakes() {
-    return _stocktakesBox.values.toList();
+    return Hive.box<StocktakeModel>(stocktakeBoxName).values.toList();
   }
 
-  static List<StocktakeModel> getStocktakesBySession(String sessionId) {
-    return _stocktakesBox.values
-        .where((stocktake) => stocktake.sessionId == sessionId)
-        .toList();
+  static Future<void> saveStocktake(StocktakeModel stocktake) async {
+    final box = Hive.box<StocktakeModel>(stocktakeBoxName);
+    await box.put(stocktake.id, stocktake);
   }
 
   static List<StocktakeModel> getUnsyncedStocktakes() {
-    return _stocktakesBox.values
-        .where((stocktake) => !stocktake.isSynced)
+    return Hive.box<StocktakeModel>(stocktakeBoxName)
+        .values
+        .where((s) => !s.isSynced)
         .toList();
   }
 
   static Future<void> markStocktakeSynced(String id) async {
-    final stocktake = _stocktakesBox.get(id);
+    final box = Hive.box<StocktakeModel>(stocktakeBoxName);
+    final stocktake = box.get(id);
     if (stocktake != null) {
       stocktake.isSynced = true;
       await stocktake.save();
     }
-  }
-
-  static Future<void> clearAll() async {
-    await _productsBox.clear();
-    await _stocktakesBox.clear();
   }
 }
