@@ -19,32 +19,56 @@ class StocktakeModelAdapter extends TypeAdapter<StocktakeModel> {
     return StocktakeModel(
       id: fields[0] as String,
       sessionId: fields[1] as String,
-      productId: fields[2] as String,
-      barcode: fields[3] as String,
-      countedQuantity: fields[4] as int,
-      timestamp: fields[5] as DateTime,
-      isSynced: fields[6] as bool,
+      orgId: fields[2] as String,
+      productId: fields[3] as String,
+      barcode: fields[4] as String? ?? '',
+      scannedQuantity: fields[5] as int,
+      expectedQuantity: fields[6] as int?,
+      isBlindCount: fields[7] as bool? ?? true,
+      latitude: fields[8] as double?,
+      longitude: fields[9] as double?,
+      scannedBy: fields[10] as String,
+      scannedAt: fields[11] as DateTime,
+      isSynced: fields[12] as bool? ?? false,
+      deviceId: fields[13] as String?,
+      locationRef: fields[14] as String?,
     );
   }
 
   @override
   void write(BinaryWriter writer, StocktakeModel obj) {
     writer
-      ..writeByte(7)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
       ..write(obj.sessionId)
       ..writeByte(2)
-      ..write(obj.productId)
+      ..write(obj.orgId)
       ..writeByte(3)
-      ..write(obj.barcode)
+      ..write(obj.productId)
       ..writeByte(4)
-      ..write(obj.countedQuantity)
+      ..write(obj.barcode)
       ..writeByte(5)
-      ..write(obj.timestamp)
+      ..write(obj.scannedQuantity)
       ..writeByte(6)
-      ..write(obj.isSynced);
+      ..write(obj.expectedQuantity)
+      ..writeByte(7)
+      ..write(obj.isBlindCount)
+      ..writeByte(8)
+      ..write(obj.latitude)
+      ..writeByte(9)
+      ..write(obj.longitude)
+      ..writeByte(10)
+      ..write(obj.scannedBy)
+      ..writeByte(11)
+      ..write(obj.scannedAt)
+      ..writeByte(12)
+      ..write(obj.isSynced)
+      ..writeByte(13)
+      ..write(obj.deviceId)
+      ..writeByte(14)
+      ..write(obj.locationRef);
   }
 
   @override
