@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/product_model.dart';
 import 'models/stocktake_model.dart';
 import 'services/hive_service.dart';
-import 'screens/main_navigation_screen.dart';
+import 'providers/product_provider.dart';
+import 'providers/stocktake_provider.dart';
 import 'screens/login_screen.dart';
 
 void main() async {
@@ -13,11 +15,11 @@ void main() async {
   // 1. تهيئة Hive (التخزين المحلي)
   await Hive.initFlutter();
 
-  // 2. تسجيل الموديلات (Adapters) عشان Hive يعرف يخزنها
+  // 2. تسجيل الموديلات (Adapters)
   Hive.registerAdapter(ProductModelAdapter());
   Hive.registerAdapter(StocktakeModelAdapter());
 
-  // 3. فتح الصناديق (Boxes) قبل ما يشتغل أي شاشة
+  // 3. فتح الصناديق (Boxes)
   await Hive.openBox<ProductModel>(HiveService.productBoxName);
   await Hive.openBox<StocktakeModel>(HiveService.stocktakeBoxName);
 
@@ -37,14 +39,20 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'نظام الجرد الذكي',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ProductProvider()..loadProducts()),
+        ChangeNotifierProvider(create: (_) => StocktakeProvider()),
+      ],
+      child: MaterialApp(
+        title: 'نظام الجرد الذكي',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+          useMaterial3: true,
+        ),
+        home: const LoginScreen(),
       ),
-      home: const LoginScreen(),
     );
   }
 }
