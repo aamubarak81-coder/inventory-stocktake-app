@@ -18,30 +18,51 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
     };
     return ProductModel(
       id: fields[0] as String,
-      barcode: fields[1] as String,
-      name: fields[2] as String,
-      price: fields[3] as double,
-      quantity: fields[4] as int,
-      isSynced: fields[5] as bool,
+      orgId: fields[1] as String,
+      warehouseId: fields[2] as String? ?? '',
+      code: fields[3] as String,
+      name: fields[4] as String,
+      unit: fields[5] as String? ?? '',
+      barcode: fields[6] as String? ?? '',
+      systemQuantity: fields[7] as int,
+      price: fields[8] as double,
+      isFrozen: fields[9] as bool? ?? false,
+      isSynced: fields[10] as bool? ?? false,
+      lastUpdated: fields[11] as DateTime,
+      locationRef: fields[12] as String? ?? '',
     );
   }
 
   @override
   void write(BinaryWriter writer, ProductModel obj) {
     writer
-      ..writeByte(6)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.barcode)
+      ..write(obj.orgId)
       ..writeByte(2)
-      ..write(obj.name)
+      ..write(obj.warehouseId)
       ..writeByte(3)
-      ..write(obj.price)
+      ..write(obj.code)
       ..writeByte(4)
-      ..write(obj.quantity)
+      ..write(obj.name)
       ..writeByte(5)
-      ..write(obj.isSynced);
+      ..write(obj.unit)
+      ..writeByte(6)
+      ..write(obj.barcode)
+      ..writeByte(7)
+      ..write(obj.systemQuantity)
+      ..writeByte(8)
+      ..write(obj.price)
+      ..writeByte(9)
+      ..write(obj.isFrozen)
+      ..writeByte(10)
+      ..write(obj.isSynced)
+      ..writeByte(11)
+      ..write(obj.lastUpdated)
+      ..writeByte(12)
+      ..write(obj.locationRef);
   }
 
   @override
