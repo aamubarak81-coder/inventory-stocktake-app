@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:excel/excel.dart';
+import 'package:excel/excel.dart' hide Border;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
@@ -201,9 +201,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
         foregroundColor: Colors.white,
         centerTitle: true,
       ),
-      body: Directionality(
-        textDirection: TextDirection.rtl,
-        child: entries.isEmpty
+      body: entries.isEmpty
             ? const Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -342,7 +340,6 @@ class _ReportsScreenState extends State<ReportsScreen> {
                   ],
                 ),
               ),
-      ),
     );
   }
 }
