@@ -8,47 +8,20 @@ class AdminService {
 
   static Future<List<Map<String, dynamic>>> getOrganizations() async {
     try {
-      final isSuperAdmin = await AuthService.getEmployeeRole();
-      if (isSuperAdmin == 'super_admin') {
-        // المدير العام يرى كل الشركات
-        final response = await _client
-            .from('organizations')
-            .select()
-            .order('created_at', ascending: false);
-        return List<Map<String, dynamic>>.from(response);
-      } else {
-        // المدير العادي يرى شركته فقط
-        final orgId = await AuthService.getOrgId();
-        if (orgId == null) return [];
-        final response = await _client
-            .from('organizations')
-            .select()
-            .eq('id', orgId);
-        return List<Map<String, dynamic>>.from(response);
-      }
+      final orgId = await AuthService.getOrgId();
+      if (orgId == null) return [];
+      // نجلب المنظمة الحالية فقط (يمكن توسيعها لاحقاً للمدير العام)
+      final response = await _client
+          .from('organizations')
+          .select('id, name, plan_id, created_at')
+          .eq('id', orgId);
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       return [];
     }
   }
 
-  static Future<String?> addOrganization({
-    required String name,
-    String? phone,
-    String? email,
-  }) async {
-    try {
-      await _client.from('organizations').insert({
-        'name': name,
-        if (phone != null && phone.isNotEmpty) 'phone': phone,
-        if (email != null && email.isNotEmpty) 'email': email,
-      });
-      return null;
-    } catch (e) {
-      return e.toString();
-    }
-  }
-
-  // ==================== المستودعات (Warehouses) ====================
+  // ==================== المستودعات (Warehouses) مع الفرع ====================
 
   static Future<List<Map<String, dynamic>>> getWarehouses() async {
     try {
@@ -56,7 +29,7 @@ class AdminService {
       if (orgId == null) return [];
       final response = await _client
           .from('warehouses')
-          .select()
+          .select('id, name, location, branch_id, org_id, created_at')
           .eq('org_id', orgId)
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);
@@ -68,6 +41,7 @@ class AdminService {
   static Future<String?> addWarehouse({
     required String name,
     String? location,
+    int? branchId,
   }) async {
     try {
       final orgId = await AuthService.getOrgId();
@@ -76,6 +50,7 @@ class AdminService {
         'org_id': orgId,
         'name': name,
         if (location != null && location.isNotEmpty) 'location': location,
+        if (branchId != null) 'branch_id': branchId,
       });
       return null;
     } catch (e) {
@@ -100,7 +75,7 @@ class AdminService {
       if (orgId == null) return [];
       final response = await _client
           .from('employees')
-          .select('id, name, role, is_super_admin, warehouse_id, created_at')
+          .select('id, name, email, phone, role, is_super_admin, warehouse_id, created_at')
           .eq('org_id', orgId)
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);
@@ -109,15 +84,59 @@ class AdminService {
     }
   }
 
+  /// إضافة موظف جديد عبر Supabase Auth ثم إدراجه في جدول employees
+  static Future<String?> addEmployee({
+    required String email,
+    required String password,
+    required String name,
+    required String role,
+    String? phone,
+    String? warehouseId,
+  }) async {
+    try {
+      final orgId = await AuthService.getOrgId();
+      if (orgId == null) return 'لم يتم تحديد المنظمة';
+
+      // إنشاء حساب المصادقة
+      final authResponse = await _client.auth.admin.createUser(
+        AdminUserAttributes(
+          email: email,
+          password: password,
+          emailConfirm: true,
+        ),
+      );
+
+      final userId = authResponse.user?.id;
+      if (userId == null) return 'فشل إنشاء حساب المصادقة';
+
+      // إدراج بيانات الموظف في جدول employees
+      await _client.from('employees').insert({
+        'id': userId,
+        'org_id': orgId,
+        'name': name,
+        'email': email,
+        'role': role,
+        'is_super_admin': role == 'super_admin',
+        if (phone != null && phone.isNotEmpty) 'phone': phone,
+        if (warehouseId != null && warehouseId.isNotEmpty) 'warehouse_id': warehouseId,
+      });
+
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   static Future<String?> updateEmployeeRole({
     required String employeeId,
     required String role,
-    bool isSuperAdmin = false,
+    String? warehouseId,
   }) async {
     try {
       await _client.from('employees').update({
         'role': role,
-        'is_super_admin': isSuperAdmin,
+        'is_super_admin': role == 'super_admin',
+        if (warehouseId != null) 'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
       }).eq('id', employeeId);
       return null;
     } catch (e) {
