@@ -75,6 +75,11 @@ class StocktakeProvider extends ChangeNotifier {
     return product;
   }
 
+  // دالة مساعدة للبحث عن منتج بالباركود من الشاشة
+  ProductModel? getProductByBarcode(String barcode) {
+    return HiveService.getProductByBarcode(barcode);
+  }
+
   void removeFromView(String entryId) {
     _currentSessionEntries.removeWhere((entry) => entry.id == entryId);
     notifyListeners();

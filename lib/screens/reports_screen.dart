@@ -1,20 +1,390 @@
- import 'package:flutter/material.dart';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:excel/excel.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:intl/intl.dart';
+import '../services/hive_service.dart';
+import '../models/stocktake_model.dart';
 
-class ReportsScreen extends StatelessWidget {
+class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
 
   @override
+  State<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends State<ReportsScreen> {
+  bool _isExporting = false;
+
+  List<StocktakeModel> get _allEntries => HiveService.getStocktakes();
+
+  // إحصائيات
+  int get _total => _allEntries.length;
+  int get _matched => _allEntries
+      .where((e) => e.expectedQuantity != null && e.scannedQuantity == e.expectedQuantity)
+      .length;
+  int get _surplus => _allEntries
+      .where((e) => e.expectedQuantity != null && e.scannedQuantity > e.expectedQuantity!)
+      .length;
+  int get _deficit => _allEntries
+      .where((e) => e.expectedQuantity != null && e.scannedQuantity < e.expectedQuantity!)
+      .length;
+  int get _unsynced => _allEntries.where((e) => !e.isSynced).length;
+
+  // تصدير Excel
+  Future<void> _exportExcel() async {
+    setState(() => _isExporting = true);
+    try {
+      final excel = Excel.createExcel();
+      final sheet = excel['تقرير الجرد'];
+
+      // رأس الجدول
+      final headers = [
+        'الباركود', 'معرف المنتج', 'الكمية الفعلية',
+        'الكمية الدفترية', 'الفارق', 'الحالة',
+        'الموقع', 'تاريخ الجرد', 'المزامنة'
+      ];
+      for (var i = 0; i < headers.length; i++) {
+        sheet
+            .cell(CellIndex.indexByColumnRow(columnIndex: i, rowIndex: 0))
+            .value = TextCellValue(headers[i]);
+      }
+
+      // البيانات
+      final entries = _allEntries;
+      for (var i = 0; i < entries.length; i++) {
+        final e = entries[i];
+        final diff = e.expectedQuantity != null
+            ? e.scannedQuantity - e.expectedQuantity!
+            : 0;
+        final status = e.expectedQuantity == null
+            ? 'جرد أعمى'
+            : diff == 0
+                ? 'مطابق'
+                : diff > 0
+                    ? 'زيادة'
+                    : 'نقص';
+
+        final row = [
+          e.barcode,
+          e.productId,
+          e.scannedQuantity.toString(),
+          e.expectedQuantity?.toString() ?? '-',
+          diff.toString(),
+          status,
+          e.locationRef ?? '-',
+          DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt),
+          e.isSynced ? 'متزامن' : 'غير متزامن',
+        ];
+        for (var j = 0; j < row.length; j++) {
+          sheet
+              .cell(CellIndex.indexByColumnRow(columnIndex: j, rowIndex: i + 1))
+              .value = TextCellValue(row[j]);
+        }
+      }
+
+      final dir = await getTemporaryDirectory();
+      final fileName =
+          'تقرير_الجرد_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.xlsx';
+      final file = File('${dir.path}/$fileName');
+      final bytes = excel.save();
+      if (bytes != null) {
+        await file.writeAsBytes(bytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'تقرير الجرد الذكي');
+      }
+    } catch (e) {
+      _showError('فشل تصدير Excel: $e');
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  // تصدير PDF
+  Future<void> _exportPdf() async {
+    setState(() => _isExporting = true);
+    try {
+      final pdf = pw.Document();
+      final entries = _allEntries;
+      final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          textDirection: pw.TextDirection.rtl,
+          build: (context) => [
+            pw.Header(
+              level: 0,
+              child: pw.Text(
+                'تقرير الجرد الذكي - $now',
+                style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
+              ),
+            ),
+            pw.SizedBox(height: 10),
+            // ملخص إحصائي
+            pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(),
+                borderRadius: pw.BorderRadius.circular(4),
+              ),
+              child: pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  pw.Text('الإجمالي: $_total'),
+                  pw.Text('مطابق: $_matched'),
+                  pw.Text('زيادة: $_surplus'),
+                  pw.Text('نقص: $_deficit'),
+                ],
+              ),
+            ),
+            pw.SizedBox(height: 16),
+            // جدول البيانات
+            pw.Table.fromTextArray(
+              headers: ['الباركود', 'الفعلي', 'الدفتري', 'الفارق', 'الحالة', 'التاريخ'],
+              data: entries.map((e) {
+                final diff = e.expectedQuantity != null
+                    ? e.scannedQuantity - e.expectedQuantity!
+                    : 0;
+                final status = e.expectedQuantity == null
+                    ? 'أعمى'
+                    : diff == 0
+                        ? 'مطابق'
+                        : diff > 0
+                            ? '+$diff'
+                            : '$diff';
+                return [
+                  e.barcode.isNotEmpty ? e.barcode : e.productId.substring(0, 8),
+                  e.scannedQuantity.toString(),
+                  e.expectedQuantity?.toString() ?? '-',
+                  diff.toString(),
+                  status,
+                  DateFormat('MM-dd HH:mm').format(e.scannedAt),
+                ];
+              }).toList(),
+              headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+              cellAlignment: pw.Alignment.center,
+              headerDecoration: const pw.BoxDecoration(color: PdfColors.orange100),
+            ),
+          ],
+        ),
+      );
+
+      final dir = await getTemporaryDirectory();
+      final fileName =
+          'تقرير_الجرد_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf';
+      final file = File('${dir.path}/$fileName');
+      await file.writeAsBytes(await pdf.save());
+      await Share.shareXFiles([XFile(file.path)], text: 'تقرير الجرد الذكي');
+    } catch (e) {
+      _showError('فشل تصدير PDF: $e');
+    } finally {
+      setState(() => _isExporting = false);
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg), backgroundColor: Colors.red));
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final entries = _allEntries;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('التقارير'),
         backgroundColor: Colors.orange,
+        foregroundColor: Colors.white,
+        centerTitle: true,
       ),
-      body: const Center(
-        child: Text(
-          'شاشة التقارير - قريباً',
-          style: TextStyle(fontSize: 20),
-        ),
+      body: Directionality(
+        textDirection: TextDirection.rtl,
+        child: entries.isEmpty
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.bar_chart, size: 72, color: Colors.grey),
+                    SizedBox(height: 12),
+                    Text('لا توجد بيانات جرد بعد',
+                        style: TextStyle(fontSize: 18, color: Colors.grey)),
+                    SizedBox(height: 8),
+                    Text('ابدأ بجرد المنتجات لتظهر التقارير هنا',
+                        style: TextStyle(fontSize: 13, color: Colors.grey)),
+                  ],
+                ),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // بطاقات الإحصائيات
+                    const Text('ملخص الجرد',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    GridView.count(
+                      crossAxisCount: 2,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      crossAxisSpacing: 10,
+                      mainAxisSpacing: 10,
+                      childAspectRatio: 2,
+                      children: [
+                        _StatCard('إجمالي عمليات الجرد', _total, Colors.blue, Icons.inventory),
+                        _StatCard('مطابق', _matched, Colors.green, Icons.check_circle),
+                        _StatCard('زيادة في المخزون', _surplus, Colors.teal, Icons.add_circle),
+                        _StatCard('نقص في المخزون', _deficit, Colors.red, Icons.remove_circle),
+                        _StatCard('في انتظار المزامنة', _unsynced, Colors.orange, Icons.sync),
+                        _StatCard('متزامن مع السيرفر', _total - _unsynced, Colors.purple, Icons.cloud_done),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // أزرار التصدير
+                    const Text('تصدير التقرير',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isExporting ? null : _exportExcel,
+                            icon: _isExporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.table_chart),
+                            label: const Text('تصدير Excel'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            onPressed: _isExporting ? null : _exportPdf,
+                            icon: _isExporting
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2))
+                                : const Icon(Icons.picture_as_pdf),
+                            label: const Text('تصدير PDF'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 24),
+
+                    // آخر 10 عمليات جرد
+                    const Text('آخر عمليات الجرد',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    ...entries.reversed.take(10).map((e) {
+                      final diff = e.expectedQuantity != null
+                          ? e.scannedQuantity - e.expectedQuantity!
+                          : 0;
+                      final color = e.expectedQuantity == null
+                          ? Colors.grey
+                          : diff == 0
+                              ? Colors.green
+                              : diff > 0
+                                  ? Colors.teal
+                                  : Colors.red;
+                      return Card(
+                        margin: const EdgeInsets.symmetric(vertical: 3),
+                        child: ListTile(
+                          dense: true,
+                          leading: Icon(Icons.qr_code, color: color),
+                          title: Text(
+                            e.barcode.isNotEmpty ? e.barcode : e.productId,
+                            style: const TextStyle(fontSize: 13),
+                          ),
+                          subtitle: Text(
+                            DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
+                            children: [
+                              Text('الفعلي: ${e.scannedQuantity}',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: color,
+                                      fontSize: 12)),
+                              if (e.expectedQuantity != null)
+                                Text('الدفتري: ${e.expectedQuantity}',
+                                    style: const TextStyle(
+                                        fontSize: 11, color: Colors.grey)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  final IconData icon;
+
+  const _StatCard(this.label, this.value, this.color, this.icon);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 28),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text('$value',
+                    style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: color)),
+                Text(label,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    overflow: TextOverflow.ellipsis),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
