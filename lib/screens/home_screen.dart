@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'stocktake_screen.dart';
 import 'results_screen.dart';
 import 'products_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -85,6 +86,25 @@ class HomeScreen extends StatelessWidget {
                 label: const Text('نتائج الجرد', style: TextStyle(fontSize: 18)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // 4️⃣ زر لوحة تحكم الإدارة
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminDashboardScreen()),
+                  );
+                },
+                icon: const Icon(Icons.admin_panel_settings),
+                label: const Text('لوحة تحكم الإدارة', style: TextStyle(fontSize: 18)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),

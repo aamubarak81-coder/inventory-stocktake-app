@@ -1,9 +1,11 @@
 ﻿import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
 import 'products_screen.dart';
 import 'stocktake_screen.dart';
 import 'results_screen.dart';
 import 'reports_screen.dart';
+import 'admin_dashboard_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -14,32 +16,55 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _currentIndex = 0;
+  bool _isAdmin = false;
 
-  final List<Widget> _screens = [
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminRole();
+  }
+
+  Future<void> _checkAdminRole() async {
+    final role = await AuthService.getEmployeeRole();
+    final isSuperAdmin = await AuthService.getEmployeeRole();
+    setState(() {
+      _isAdmin = role == 'admin' || role == 'manager' || isSuperAdmin == 'super_admin';
+    });
+  }
+
+  List<Widget> get _screens => [
     const HomeScreen(),
     const ProductsScreen(),
     const StocktakeScreen(),
     const ResultsScreen(),
     const ReportsScreen(),
+    if (_isAdmin) const AdminDashboardScreen(),
+  ];
+
+  List<BottomNavigationBarItem> get _navItems => [
+    const BottomNavigationBarItem(icon: Icon(Icons.home), label: 'الرئيسية'),
+    const BottomNavigationBarItem(icon: Icon(Icons.inventory_2), label: 'المنتجات'),
+    const BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'الجرد'),
+    const BottomNavigationBarItem(icon: Icon(Icons.assessment), label: 'النتائج'),
+    const BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'التقارير'),
+    if (_isAdmin)
+      const BottomNavigationBarItem(icon: Icon(Icons.admin_panel_settings), label: 'الإدارة'),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _screens[_currentIndex],
+      body: IndexedStack(
+        index: _currentIndex.clamp(0, _screens.length - 1),
+        children: _screens,
+      ),
       bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
+        currentIndex: _currentIndex.clamp(0, _screens.length - 1),
         onTap: (index) => setState(() => _currentIndex = index),
         type: BottomNavigationBarType.fixed,
         selectedItemColor: Colors.blue,
         unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'الرئيسية'),
-          BottomNavigationBarItem(icon: Icon(Icons.inventory_2), label: 'المنتجات'),
-          BottomNavigationBarItem(icon: Icon(Icons.qr_code_scanner), label: 'الجرد'),
-          BottomNavigationBarItem(icon: Icon(Icons.assessment), label: 'النتائج'),
-          BottomNavigationBarItem(icon: Icon(Icons.bar_chart), label: 'التقارير'),
-        ],
+        items: _navItems,
       ),
     );
   }

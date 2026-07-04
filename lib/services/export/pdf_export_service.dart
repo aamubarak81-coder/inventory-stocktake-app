@@ -72,8 +72,8 @@ class PdfExportService {
                     final st = entry.value;
                     final product = productsMap[st.productId];
 
-                    final int systemQty = product?.quantity ?? 0;
-                    final int countedQty = st.countedQuantity;
+                    final int systemQty = product?.systemQuantity ?? 0;
+                    final int countedQty = st.scannedQuantity;
                     final int diff = countedQty - systemQty;
 
                     PdfColor statusColor;
