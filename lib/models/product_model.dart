@@ -40,19 +40,23 @@ class ProductModel extends HiveObject {
   @HiveField(11)
   DateTime lastUpdated;
 
+  @HiveField(12)
+  String locationRef;
+
   ProductModel({
     required this.id,
     required this.orgId,
-    required this.warehouseId,
+    this.warehouseId = '',
     required this.code,
     required this.name,
-    required this.unit,
-    required this.barcode,
+    this.unit = '',
+    this.barcode = '',
     required this.systemQuantity,
     required this.price,
     this.isFrozen = false,
     this.isSynced = false,
     required this.lastUpdated,
+    this.locationRef = '',
   });
 
   // اسم بديل للتوافق مع الكود القديم (نفس systemQuantity)
@@ -71,27 +75,30 @@ class ProductModel extends HiveObject {
       systemQuantity: map['system_quantity'] ?? 0,
       price: (map['price'] ?? 0).toDouble(),
       isFrozen: map['is_frozen'] ?? false,
-      isSynced: true,
-      lastUpdated: map['last_updated'] != null
-          ? DateTime.parse(map['last_updated'])
+      isSynced: true, // إذا جاي من Supabase فهو متزامن أصلاً
+      lastUpdated: map['updated_at'] != null
+          ? DateTime.parse(map['updated_at'])
           : DateTime.now(),
+      locationRef: map['location_ref'] ?? '',
     );
   }
 
   // تحويل الموديل المحلي إلى بيانات جاهزة للإرسال لـ Supabase
+  // ملاحظة: ما منبعت id لو كان فاضي، عشان قاعدة البيانات تولده تلقائياً
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'org_id': orgId,
-      'warehouse_id': warehouseId,
-      'code': code,
+      'warehouse_id': warehouseId.isEmpty ? null : warehouseId,
+      'code': code.isEmpty ? null : code,
       'name': name,
-      'unit': unit,
-      'barcode': barcode,
+      'unit': unit.isEmpty ? null : unit,
+      'barcode': barcode.isEmpty ? null : barcode,
       'system_quantity': systemQuantity,
       'price': price,
       'is_frozen': isFrozen,
-      'last_updated': lastUpdated.toIso8601String(),
+      'updated_at': lastUpdated.toIso8601String(),
+      'location_ref': locationRef.isEmpty ? null : locationRef,
     };
   }
 }
