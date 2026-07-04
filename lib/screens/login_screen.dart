@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/sync_service.dart';
 import 'main_navigation_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -14,11 +15,13 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _isLoading = false;
   String? _errorMessage;
+  String _loadingMessage = '';
 
   Future<void> _handleLogin() async {
     setState(() {
       _isLoading = true;
       _errorMessage = null;
+      _loadingMessage = 'جاري تسجيل الدخول...';
     });
 
     final error = await AuthService.login(
@@ -28,15 +31,34 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (!mounted) return;
 
+    if (error != null) {
+      setState(() {
+        _isLoading = false;
+        _errorMessage = error;
+      });
+      return;
+    }
+
+    // بعد نجاح تسجيل الدخول، نزامن البيانات فوراً (تنزيل المنتجات)
+    setState(() => _loadingMessage = 'جاري تحميل بيانات المنتجات...');
+
+    final syncResult = await SyncService.syncAll();
+
+    if (!mounted) return;
+
     setState(() => _isLoading = false);
 
-    if (error == null) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
-      );
-    } else {
-      setState(() => _errorMessage = error);
+    if (!syncResult.success) {
+      // حتى لو فشلت المزامنة (مثلاً بدون نت)، ندخل المستخدم عادي
+      // لأنه التطبيق Offline-First ويقدر يشتغل من البيانات المحلية السابقة
+      debugPrint('Sync failed: ${syncResult.message}');
     }
+
+    if (!mounted) return;
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(builder: (_) => const MainNavigationScreen()),
+    );
   }
 
   @override
@@ -89,6 +111,14 @@ class _LoginScreenState extends State<LoginScreen> {
                     _errorMessage!,
                     style: const TextStyle(color: Colors.red),
                     textAlign: TextAlign.center,
+                  ),
+                ),
+              if (_isLoading)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    _loadingMessage,
+                    style: const TextStyle(color: Colors.blue),
                   ),
                 ),
               const SizedBox(height: 16),
