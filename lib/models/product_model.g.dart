@@ -29,13 +29,8 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       isFrozen: fields[9] as bool,
       isSynced: fields[10] as bool,
       lastUpdated: fields[11] as DateTime,
-<<<<<<< HEAD
       locationRef: fields[12] as String,
       isDeleted: fields[13] as bool,
-=======
-      locationRef: fields[12] as String? ?? '',
-      isDeleted: fields[13] as bool? ?? false,
->>>>>>> e52ea47620e032128fb2be8123ab7f10f3c7a4bf
     );
   }
 
