@@ -20,6 +20,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _BranchesTab(key: UniqueKey()),
       _EmployeesTab(key: UniqueKey()),
       const _PermissionsTab(),
+      _AlertsTab(key: UniqueKey()),
       const _ReportsTab(),
     ];
 
@@ -41,6 +42,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 NavigationRailDestination(icon: Icon(Icons.business), label: Text('الفروع')),
                 NavigationRailDestination(icon: Icon(Icons.people), label: Text('الموظفين')),
                 NavigationRailDestination(icon: Icon(Icons.security), label: Text('الصلاحيات')),
+                NavigationRailDestination(icon: Icon(Icons.warning_amber_rounded), label: Text('التنبيهات')),
                 NavigationRailDestination(icon: Icon(Icons.bar_chart), label: Text('التقارير')),
               ],
             ),
@@ -831,6 +833,198 @@ class _PermItem {
   final String key, label;
   final bool has;
   const _PermItem(this.key, this.label, {this.has = false});
+}
+
+// ==================== تنبيهات فروقات الجرد ====================
+class _AlertsTab extends StatefulWidget {
+  const _AlertsTab({super.key});
+  @override
+  State<_AlertsTab> createState() => _AlertsTabState();
+}
+
+class _AlertsTabState extends State<_AlertsTab> {
+  List<Map<String, dynamic>> _alerts = [];
+  bool _loading = true;
+  bool _onlyUnresolved = true;
+  // نتتبع محلياً أي تنبيه جاري تحديثه حالياً (منع ضغط مزدوج على نفس الزر)
+  final Set<String> _resolving = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    final data = await AdminService.getDiscrepancyAlerts(
+      onlyUnresolved: _onlyUnresolved,
+    );
+    if (mounted) setState(() { _alerts = data; _loading = false; });
+  }
+
+  Future<void> _resolve(String alertId) async {
+    setState(() => _resolving.add(alertId));
+    final error = await AdminService.resolveDiscrepancyAlert(alertId);
+    if (!mounted) return;
+    setState(() => _resolving.remove(alertId));
+
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('فشل تحديث التنبيه: $error'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+    // نحدّث القائمة محلياً بدل إعادة الجلب الكامل: إما نحذفه من العرض
+    // (لو الفلتر "غير محلولة فقط") أو نعلّمه resolved=true بمكانه
+    setState(() {
+      if (_onlyUnresolved) {
+        _alerts.removeWhere((a) => a['id'] == alertId);
+      } else {
+        final idx = _alerts.indexWhere((a) => a['id'] == alertId);
+        if (idx != -1) _alerts[idx] = {..._alerts[idx], 'resolved': true};
+      }
+    });
+  }
+
+  String _triggerLabel(String? t) {
+    const m = {
+      'percent': 'نسبة الفرق',
+      'quantity': 'كمية الفرق',
+      'both': 'نسبة وكمية',
+    };
+    return m[t] ?? '-';
+  }
+
+  String _formatDate(String? iso) {
+    if (iso == null) return '-';
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return iso;
+    final local = dt.toLocal();
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${local.year}-${two(local.month)}-${two(local.day)} ${two(local.hour)}:${two(local.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('تنبيهات فروقات الجرد',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+              Row(children: [
+                FilterChip(
+                  label: const Text('غير محلولة فقط'),
+                  selected: _onlyUnresolved,
+                  onSelected: (v) {
+                    setState(() => _onlyUnresolved = v);
+                    _load();
+                  },
+                ),
+                const SizedBox(width: 8),
+                IconButton(
+                  tooltip: 'تحديث',
+                  onPressed: _loading ? null : _load,
+                  icon: const Icon(Icons.refresh),
+                ),
+              ]),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _alerts.isEmpty
+                    ? Center(
+                        child: Text(
+                          _onlyUnresolved
+                              ? 'لا توجد تنبيهات غير محلولة 🎉'
+                              : 'لا توجد تنبيهات بعد',
+                          style: const TextStyle(color: Colors.grey, fontSize: 15),
+                        ),
+                      )
+                    : ListView.builder(
+                        itemCount: _alerts.length,
+                        itemBuilder: (_, i) {
+                          final a = _alerts[i];
+                          final product = a['products'] as Map<String, dynamic>?;
+                          final productName = product?['name'] ?? 'منتج محذوف';
+                          final barcode = product?['barcode'] ?? '';
+                          final diffQty = a['diff_quantity'] as num? ?? 0;
+                          final diffPercent = a['diff_percent'] as num? ?? 0;
+                          final resolved = a['resolved'] == true;
+                          final alertId = a['id'] as String;
+                          final isBusy = _resolving.contains(alertId);
+                          final isNegative = diffQty < 0;
+
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 10),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: (isNegative ? Colors.red : Colors.teal).withOpacity(0.15),
+                                child: Icon(
+                                  isNegative ? Icons.trending_down : Icons.trending_up,
+                                  color: isNegative ? Colors.red : Colors.teal,
+                                ),
+                              ),
+                              title: Row(children: [
+                                Expanded(
+                                  child: Text(productName,
+                                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                                ),
+                                if (resolved)
+                                  const Chip(
+                                    label: Text('تم الحل', style: TextStyle(fontSize: 11, color: Colors.green)),
+                                    backgroundColor: Color(0xFFE8F5E9),
+                                    visualDensity: VisualDensity.compact,
+                                  ),
+                              ]),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    if (barcode.toString().isNotEmpty)
+                                      Text('باركود: $barcode', style: const TextStyle(fontSize: 12)),
+                                    Text(
+                                      'المسحوب: ${a['scanned_quantity']} | المتوقع: ${a['expected_quantity']} | '
+                                      'الفرق: $diffQty (${diffPercent.toStringAsFixed(1)}%)',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      'السبب: ${_triggerLabel(a['trigger_reason'] as String?)} • ${_formatDate(a['created_at'] as String?)}',
+                                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              isThreeLine: true,
+                              trailing: resolved
+                                  ? null
+                                  : isBusy
+                                      ? const SizedBox(
+                                          width: 20, height: 20,
+                                          child: CircularProgressIndicator(strokeWidth: 2))
+                                      : TextButton.icon(
+                                          onPressed: () => _resolve(alertId),
+                                          icon: const Icon(Icons.check_circle_outline, size: 18),
+                                          label: const Text('تحديد كمحلول'),
+                                        ),
+                            ),
+                          );
+                        },
+                      ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ==================== التقارير ====================
