@@ -19,18 +19,18 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
     return ProductModel(
       id: fields[0] as String,
       orgId: fields[1] as String,
-      warehouseId: fields[2] as String? ?? '',
+      warehouseId: fields[2] as String,
       code: fields[3] as String,
       name: fields[4] as String,
-      unit: fields[5] as String? ?? '',
-      barcode: fields[6] as String? ?? '',
+      unit: fields[5] as String,
+      barcode: fields[6] as String,
       systemQuantity: fields[7] as int,
       price: fields[8] as double,
-      isFrozen: fields[9] as bool? ?? false,
-      isSynced: fields[10] as bool? ?? false,
+      isFrozen: fields[9] as bool,
+      isSynced: fields[10] as bool,
       lastUpdated: fields[11] as DateTime,
-      locationRef: fields[12] as String? ?? '',
-      isDeleted: fields[13] as bool? ?? false,
+      locationRef: fields[12] as String,
+      isDeleted: fields[13] as bool,
     );
   }
 
