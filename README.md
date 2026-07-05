@@ -35,12 +35,19 @@ samples, guidance on mobile development, and a full API reference.
 
 اكتُشف أثناء التشخيص أن عدة جداول (`stocktakes`, `discrepancy_alerts`, `discrepancies`, `audit_log`) تحتوي سياسات RLS متضاربة أو مفتوحة بالكامل:
 
-- جدول `stocktakes` فيه سياسة اسمها `"allow all"` بشرط `true` مطلق — أي مستخدم مسجّل دخول يقدر نظرياً يقرأ/يكتب بيانات أي منظمة، بغض النظر عن `org_id` الخاص فيه.
-- أضفنا نفس نمط `"allow all"` على `discrepancy_alerts` مؤقتاً لجعل الاختبار يعمل (2026-07-05) — **هذا حل مؤقت غير آمن للإنتاج.**
-- في نمطين مختلفين وغير متطابقين للتحقق من `org_id` عبر الجداول (`auth.jwt() ->> 'org_id'` مقابل `current_setting('app.current_org_id')`)، ولا واحد منهم يبدو متوافقاً فعلياً مع آلية المصادقة الحالية بالتطبيق (`AuthService`).
+- جدول `stocktakes` فيه سياسة اسمها `"allow all"` بشرط `true` مطلق — أي مستخدم مسجّل دخول يقدر نظرياً يقرأ/يكتب بيانات أي منظمة، بغض النظر عن `org_id` الخاص فيه. **لم يُحل بعد.**
+- ✅ **تم حل مشكلة `discrepancy_alerts` (2026-07-05):** استُبدلت سياسة `"allow all"` المؤقتة بسياسة حقيقية تتحقق من `org_id` عبر جدول `employees` مباشرة باستخدام `auth.uid()` (نفس الآلية الفعلية التي يعتمدها `AuthService.login()` بالتطبيق):
+  ```sql
+  create policy "employees can access their own org alerts"
+    on discrepancy_alerts for all
+    using (org_id = (select org_id from employees where id = auth.uid()))
+    with check (org_id = (select org_id from employees where id = auth.uid()));
+  ```
+  تم اختباره فعلياً وتأكيد أنه يسمح بالإدراج الصحيح للموظف بمنظمته، دون فتح الوصول لبيانات منظمات أخرى.
+- ما زال يوجد نمطين مختلفين وغير متطابقين للتحقق من `org_id` عبر باقي الجداول (`auth.jwt() ->> 'org_id'` مقابل `current_setting('app.current_org_id')`)، ولا واحد منهم متوافق فعلياً مع آلية المصادقة الحالية بالتطبيق. **الحل الصحيح المُثبت أعلاه (عبر جدول `employees` و`auth.uid()`) هو النمط الذي يجب اعتماده لأي جدول آخر يحتاج نفس النوع من العزل.**
 
-**قبل إطلاق أي نسخة Beta لعميل حقيقي، يجب:**
-1. تحديد آلية واحدة موحّدة للتحقق من `org_id` بكل الـ RLS policies
-2. استبدال كل سياسات `"allow all"` بسياسات فعلية تعزل بيانات كل منظمة عن الأخرى
-3. مراجعة شاملة لكل الجداول (ليس فقط الأربعة المذكورة) للتأكد من عدم وجود سياسات مماثلة منسية
+**قبل إطلاق أي نسخة Beta لعميل حقيقي، ما زال يجب:**
+1. تطبيق نفس نمط `employees` + `auth.uid()` على جدول `stocktakes` (لا يزال يستخدم `"allow all"`)
+2. مراجعة شاملة لكل الجداول الأخرى (`products`, `org_settings`, إلخ) للتأكد من استخدام نفس النمط الموحّد والصحيح
+3. حذف أو إصلاح السياسات القديمة غير المستخدمة (`stocktake_isolation_policy`, `stocktake_isolation`) على الجداول القديمة لتفادي الالتباس مستقبلاً
 
