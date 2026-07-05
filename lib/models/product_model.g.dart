@@ -30,13 +30,14 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       isSynced: fields[10] as bool? ?? false,
       lastUpdated: fields[11] as DateTime,
       locationRef: fields[12] as String? ?? '',
+      isDeleted: fields[13] as bool? ?? false,
     );
   }
 
   @override
   void write(BinaryWriter writer, ProductModel obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(14)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +63,9 @@ class ProductModelAdapter extends TypeAdapter<ProductModel> {
       ..writeByte(11)
       ..write(obj.lastUpdated)
       ..writeByte(12)
-      ..write(obj.locationRef);
+      ..write(obj.locationRef)
+      ..writeByte(13)
+      ..write(obj.isDeleted);
   }
 
   @override

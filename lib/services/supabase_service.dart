@@ -10,8 +10,13 @@ class SupabaseService {
   static const String stocktakesTable = 'stocktakes';
   static const int _pageSize = 500;
 
-  // جلب كل منتجات المنظمة الحالية فقط، على دفعات
-  static Future<List<ProductModel>> fetchProducts() async {
+  // جلب منتجات المنظمة الحالية، على دفعات
+  // إذا مُرر [updatedSince]، نجلب فقط المنتجات المعدّلة بعد هذا الوقت
+  // (مزامنة تدريجية / delta) بدل تحميل كل المنتجات في كل مرة.
+  // إذا كانت null، هذه أول مزامنة → نجلب كل شيء كما كان سابقاً.
+  static Future<List<ProductModel>> fetchProducts({
+    DateTime? updatedSince,
+  }) async {
     final orgId = await AuthService.getOrgId();
     if (orgId == null) return [];
 
@@ -20,10 +25,19 @@ class SupabaseService {
     bool hasMore = true;
 
     while (hasMore) {
-      final response = await _client
-          .from(productsTable)
-          .select()
-          .eq('org_id', orgId)
+      var query = _client.from(productsTable).select().eq('org_id', orgId);
+      // ملاحظة: لا نفلتر is_deleted هنا عمداً — لازم نجلب السجلات المحذوفة
+      // أيضاً (طالما هي ضمن نطاق updatedSince) حتى يعرف الجهاز أنها انحذفت
+      // ويحذفها من التخزين المحلي. لو فلترناها هون، لن يعرف الجهاز أبداً
+      // أن منتجاً محلياً انحذف على السيرفر.
+
+      if (updatedSince != null) {
+        // نستخدم gt (وليس gte) لتفادي إعادة جلب نفس آخر سجل تمت مزامنته
+        query = query.gt('updated_at', updatedSince.toUtc().toIso8601String());
+      }
+
+      final response = await query
+          .order('updated_at') // مهم لضمان ترتيب ثابت عبر الصفحات (pagination)
           .range(from, from + _pageSize - 1);
 
       final data = response as List;

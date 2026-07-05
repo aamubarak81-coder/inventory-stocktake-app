@@ -43,6 +43,9 @@ class ProductModel extends HiveObject {
   @HiveField(12)
   String locationRef;
 
+  @HiveField(13)
+  bool isDeleted;
+
   ProductModel({
     required this.id,
     required this.orgId,
@@ -57,6 +60,7 @@ class ProductModel extends HiveObject {
     this.isSynced = false,
     required this.lastUpdated,
     this.locationRef = '',
+    this.isDeleted = false,
   });
 
   // اسم بديل للتوافق مع الكود القديم (نفس systemQuantity)
@@ -80,6 +84,7 @@ class ProductModel extends HiveObject {
           ? DateTime.parse(map['updated_at'])
           : DateTime.now(),
       locationRef: map['location_ref'] ?? '',
+      isDeleted: map['is_deleted'] ?? false,
     );
   }
 
