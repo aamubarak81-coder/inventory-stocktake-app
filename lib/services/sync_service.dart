@@ -1,4 +1,6 @@
 ﻿import 'package:connectivity_plus/connectivity_plus.dart';
+import '../models/product_model.dart';
+import 'discrepancy_alert_service.dart';
 import 'hive_service.dart';
 import 'supabase_service.dart';
 
@@ -23,6 +25,7 @@ class SyncService {
 
     int syncedProducts = 0;
     int syncedStocktakes = 0;
+    int syncedAlerts = 0;
 
     try {
       // 1) رفع الجرد المحلي غير المتزامن أولاً (كما كان سابقاً)
@@ -31,6 +34,25 @@ class SyncService {
         await SupabaseService.saveStocktake(stocktake);
         await HiveService.markStocktakeSynced(stocktake.id);
         syncedStocktakes++;
+      }
+
+      // 1.5) حساب الفروقات لدفعة الجرد يلي انرفعت للتو، وحفظ أي فرق
+      // يتجاوز الـ threshold بجدول discrepancy_alerts (بدون تكرار).
+      // نستخدم المنتجات الموجودة محلياً حالياً كمرجع - وهذا كافي لأنه
+      // كل منتج فيه lastUpdated أحدث من وقت المزامنة الأخيرة لو تغيّر.
+      if (unsyncedStocktakes.isNotEmpty) {
+        try {
+          final productsById = <String, ProductModel>{
+            for (final p in HiveService.getProducts()) p.id: p,
+          };
+          syncedAlerts = await DiscrepancyAlertService.processAndSaveAlerts(
+            stocktakes: unsyncedStocktakes,
+            productsById: productsById,
+          );
+        } catch (_) {
+          // فشل حساب/حفظ التنبيهات ما لازم يوقف باقي المزامنة
+          syncedAlerts = 0;
+        }
       }
 
       // 2) سحب المنتجات: تدريجياً (delta) وليس الكل في كل مرة
@@ -53,6 +75,7 @@ class SyncService {
         message: 'Sync completed successfully',
         syncedProducts: syncedProducts,
         syncedStocktakes: syncedStocktakes,
+        syncedAlerts: syncedAlerts,
       );
     } catch (e) {
       return SyncResult(
@@ -60,6 +83,7 @@ class SyncService {
         message: 'Sync failed: $e',
         syncedProducts: syncedProducts,
         syncedStocktakes: syncedStocktakes,
+        syncedAlerts: syncedAlerts,
       );
     }
   }
@@ -78,11 +102,13 @@ class SyncResult {
   final String message;
   final int syncedProducts;
   final int syncedStocktakes;
+  final int syncedAlerts;
 
   SyncResult({
     required this.success,
     required this.message,
     required this.syncedProducts,
     required this.syncedStocktakes,
+    this.syncedAlerts = 0,
   });
 }
