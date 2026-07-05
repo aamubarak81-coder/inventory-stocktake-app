@@ -169,4 +169,88 @@ class AdminService {
       return e.toString();
     }
   }
+
+  // ==================== تنبيهات فروقات الجرد (Discrepancy Alerts) ====================
+
+  // جلب التنبيهات مع اسم وباركود المنتج المرتبط بها
+  // onlyUnresolved: افتراضياً بيرجع بس التنبيهات يلي لسه ما انحلّت
+  static Future<List<Map<String, dynamic>>> getDiscrepancyAlerts({
+    bool onlyUnresolved = true,
+  }) async {
+    try {
+      final orgId = await AuthService.getOrgId();
+      if (orgId == null) return [];
+
+      var query = _client
+          .from('discrepancy_alerts')
+          .select(
+              'id, product_id, stocktake_id, scanned_quantity, expected_quantity, '
+              'diff_quantity, diff_percent, trigger_reason, resolved, created_at, '
+              'products(name, barcode)')
+          .eq('org_id', orgId);
+
+      if (onlyUnresolved) {
+        query = query.eq('resolved', false);
+      }
+
+      final response = await query.order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      return [];
+    }
+  }
+
+  // تحديد تنبيه فرق معين كـ "تمت مراجعته وحلّه" من المدير
+  static Future<String?> resolveDiscrepancyAlert(String alertId) async {
+    try {
+      await _client.from('discrepancy_alerts').update({
+        'resolved': true,
+        'resolved_at': DateTime.now().toUtc().toIso8601String(),
+      }).eq('id', alertId);
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
+  // ==================== إعدادات حد تنبيه الفروقات (Threshold) ====================
+
+  // جلب الإعدادات الحالية (null لو المنظمة لسه ما ضبطت شي - بيستخدم
+  // التطبيق القيم الافتراضية 5% / 10 قطع تلقائياً بهذي الحالة)
+  static Future<Map<String, dynamic>?> getAlertThresholdSettings() async {
+    try {
+      final orgId = await AuthService.getOrgId();
+      if (orgId == null) return null;
+
+      final row = await _client
+          .from('org_settings')
+          .select('alert_threshold_percent, alert_threshold_qty')
+          .eq('org_id', orgId)
+          .maybeSingle();
+
+      return row;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // ضبط أو تحديث الحد الخاص بالمنظمة (upsert: يشتغل أول مرة أو تحديث لاحق)
+  static Future<String?> updateAlertThresholdSettings({
+    required double percent,
+    required int qty,
+  }) async {
+    try {
+      final orgId = await AuthService.getOrgId();
+      if (orgId == null) return 'لم يتم تحديد المنظمة';
+
+      await _client.from('org_settings').upsert({
+        'org_id': orgId,
+        'alert_threshold_percent': percent,
+        'alert_threshold_qty': qty,
+      });
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
 }
