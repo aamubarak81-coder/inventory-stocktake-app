@@ -3,7 +3,9 @@ import 'stocktake_screen.dart';
 import 'results_screen.dart';
 import 'products_screen.dart';
 import 'admin_dashboard_screen.dart';
+import 'login_screen.dart';
 import '../services/sync_service.dart';
+import '../services/auth_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -38,6 +40,39 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Future<void> _handleLogout() async {
+    // تأكيد قبل الخروج الفعلي، تفادياً لضغطة بالغلط
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تسجيل الخروج'),
+        content: const Text('هل أنت متأكد من رغبتك بتسجيل الخروج؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('خروج', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    await AuthService.logout();
+
+    if (!mounted) return;
+    // نمسح كل شاشات التنقل السابقة عشان المستخدم ما يقدر يرجع بزر الرجوع
+    // لشاشة كانت تتطلب تسجيل دخول
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -60,6 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   )
                 : const Icon(Icons.sync),
+          ),
+          IconButton(
+            tooltip: 'تسجيل الخروج',
+            onPressed: _handleLogout,
+            icon: const Icon(Icons.logout),
           ),
         ],
       ),
