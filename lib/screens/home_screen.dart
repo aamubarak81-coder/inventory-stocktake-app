@@ -3,9 +3,40 @@ import 'stocktake_screen.dart';
 import 'results_screen.dart';
 import 'products_screen.dart';
 import 'admin_dashboard_screen.dart';
+import '../services/sync_service.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  bool _isSyncing = false;
+
+  Future<void> _handleManualSync() async {
+    if (_isSyncing) return; // تفادي ضغط الزر أكثر من مرة أثناء المزامنة
+
+    setState(() => _isSyncing = true);
+
+    final result = await SyncService.syncAll();
+
+    if (!mounted) return; // الشاشة ممكن تكون اتقفلت أثناء انتظار المزامنة
+    setState(() => _isSyncing = false);
+
+    final message = result.success
+        ? 'تمت المزامنة ✅  (منتجات: ${result.syncedProducts}، جرد: ${result.syncedStocktakes})'
+        : 'فشلت المزامنة: ${result.message}';
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: result.success ? Colors.green : Colors.red,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -15,6 +46,22 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.blue,
         foregroundColor: Colors.white,
         centerTitle: true,
+        actions: [
+          IconButton(
+            tooltip: 'مزامنة الآن',
+            onPressed: _isSyncing ? null : _handleManualSync,
+            icon: _isSyncing
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : const Icon(Icons.sync),
+          ),
+        ],
       ),
       body: Center(
         child: Padding(
