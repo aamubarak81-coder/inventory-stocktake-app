@@ -22,6 +22,7 @@ void main() async {
   // 3. فتح الصناديق (Boxes)
   await Hive.openBox<ProductModel>(HiveService.productBoxName);
   await Hive.openBox<StocktakeModel>(HiveService.stocktakeBoxName);
+  await Hive.openBox(HiveService.metaBoxName); // لتخزين آخر وقت مزامنة
 
   // 4. تهيئة الاتصال بقاعدة بيانات Supabase
   await Supabase.initialize(

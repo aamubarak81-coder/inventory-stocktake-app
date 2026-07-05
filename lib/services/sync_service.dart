@@ -25,16 +25,28 @@ class SyncService {
     int syncedStocktakes = 0;
 
     try {
-      final serverProducts = await SupabaseService.fetchProducts();
-      await HiveService.saveProducts(serverProducts);
-      syncedProducts = serverProducts.length;
-
+      // 1) رفع الجرد المحلي غير المتزامن أولاً (كما كان سابقاً)
       final unsyncedStocktakes = HiveService.getUnsyncedStocktakes();
       for (final stocktake in unsyncedStocktakes) {
         await SupabaseService.saveStocktake(stocktake);
         await HiveService.markStocktakeSynced(stocktake.id);
         syncedStocktakes++;
       }
+
+      // 2) سحب المنتجات: تدريجياً (delta) وليس الكل في كل مرة
+      // نأخذ وقت البدء *قبل* الجلب، ونستخدمه كـ "آخر وقت مزامنة" الجديد
+      // فقط بعد نجاح الحفظ محلياً - لتفادي فقدان تحديثات لو انقطع الاتصال بالمنتصف
+      final syncStartedAt = DateTime.now().toUtc();
+      final lastSync = HiveService.getLastProductSync();
+
+      final serverProducts = await SupabaseService.fetchProducts(
+        updatedSince: lastSync, // null = أول مزامنة، يرجّع كل شيء كالسابق
+      );
+
+      await HiveService.saveProducts(serverProducts);
+      syncedProducts = serverProducts.length;
+
+      await HiveService.setLastProductSync(syncStartedAt);
 
       return SyncResult(
         success: true,

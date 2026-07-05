@@ -5,6 +5,23 @@ import '../models/stocktake_model.dart';
 class HiveService {
   static const String productBoxName = 'products';
   static const String stocktakeBoxName = 'stocktakes';
+  static const String metaBoxName = 'app_meta';
+  static const String _lastProductSyncKey = 'lastProductSyncAt';
+
+  // ==================== بيانات المزامنة (Meta) ====================
+
+  // آخر وقت تمت فيه مزامنة ناجحة لجدول المنتجات
+  // null = لم تتم أي مزامنة بعد (يجب سحب كل شيء أول مرة)
+  static DateTime? getLastProductSync() {
+    final box = Hive.box(metaBoxName);
+    final value = box.get(_lastProductSyncKey) as String?;
+    return value != null ? DateTime.parse(value) : null;
+  }
+
+  static Future<void> setLastProductSync(DateTime time) async {
+    final box = Hive.box(metaBoxName);
+    await box.put(_lastProductSyncKey, time.toUtc().toIso8601String());
+  }
 
   // ==================== المنتجات ====================
 
@@ -27,12 +44,24 @@ class HiveService {
   }
 
   // حفظ عدة منتجات دفعة وحدة (bulk save)
+  // المنتجات المعلّمة isDeleted=true يتم حذفها محلياً بدل حفظها،
+  // لأن الجهاز يحتاج فعلياً حذفها من التخزين المحلي وليس الاحتفاظ بها
   static Future<void> saveProducts(List<ProductModel> products) async {
     final box = Hive.box<ProductModel>(productBoxName);
-    final Map<String, ProductModel> entries = {
-      for (var p in products) p.id: p
-    };
-    await box.putAll(entries);
+
+    final toUpsert = <String, ProductModel>{};
+    final idsToDelete = <String>[];
+
+    for (final p in products) {
+      if (p.isDeleted) {
+        idsToDelete.add(p.id);
+      } else {
+        toUpsert[p.id] = p;
+      }
+    }
+
+    if (toUpsert.isNotEmpty) await box.putAll(toUpsert);
+    if (idsToDelete.isNotEmpty) await box.deleteAll(idsToDelete);
   }
 
   static Future<void> deleteProduct(String id) async {
