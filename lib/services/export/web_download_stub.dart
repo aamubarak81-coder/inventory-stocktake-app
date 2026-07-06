@@ -1,0 +1,17 @@
+import 'dart:typed_data';
+
+// نسخة بديلة (stub) بنفس اسم الكلاس والتوقيع تماماً مثل WebDownloadService
+// الحقيقية (التي تستخدم dart:html). هذا الملف يُستخدم فقط عند البناء لمنصات
+// غير الويب (موبايل/ديسكتوب)، حيث لا يمكن استيراد dart:html أصلاً.
+// لا يُستدعى فعلياً في أي وقت لأن الكود المستدعي دائماً يتحقق من kIsWeb أولاً.
+class WebDownloadService {
+  static void downloadFile({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+  }) {
+    throw UnsupportedError(
+      'WebDownloadService.downloadFile متاحة فقط عند التشغيل على الويب',
+    );
+  }
+}

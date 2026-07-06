@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:excel/excel.dart' hide Border;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,6 +10,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import '../services/hive_service.dart';
 import '../models/stocktake_model.dart';
+import '../services/export/web_download_stub.dart'
+    if (dart.library.html) '../services/export/web_download_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -86,13 +90,23 @@ class _ReportsScreenState extends State<ReportsScreen> {
         }
       }
 
-      final dir = await getTemporaryDirectory();
+      final bytes = excel.save();
+      if (bytes == null) return;
+      final fileBytes = Uint8List.fromList(bytes);
       final fileName =
           'تقرير_الجرد_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.xlsx';
-      final file = File('${dir.path}/$fileName');
-      final bytes = excel.save();
-      if (bytes != null) {
-        await file.writeAsBytes(bytes);
+
+      if (kIsWeb) {
+        WebDownloadService.downloadFile(
+          bytes: fileBytes,
+          fileName: fileName,
+          mimeType:
+              'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(fileBytes);
         await Share.shareXFiles([XFile(file.path)], text: 'تقرير الجرد الذكي');
       }
     } catch (e) {
@@ -172,12 +186,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
         ),
       );
 
-      final dir = await getTemporaryDirectory();
+      final pdfBytes = await pdf.save();
       final fileName =
           'تقرير_الجرد_${DateFormat('yyyyMMdd_HHmm').format(DateTime.now())}.pdf';
-      final file = File('${dir.path}/$fileName');
-      await file.writeAsBytes(await pdf.save());
-      await Share.shareXFiles([XFile(file.path)], text: 'تقرير الجرد الذكي');
+
+      if (kIsWeb) {
+        WebDownloadService.downloadFile(
+          bytes: pdfBytes,
+          fileName: fileName,
+          mimeType: 'application/pdf',
+        );
+      } else {
+        final dir = await getTemporaryDirectory();
+        final file = File('${dir.path}/$fileName');
+        await file.writeAsBytes(pdfBytes);
+        await Share.shareXFiles([XFile(file.path)], text: 'تقرير الجرد الذكي');
+      }
     } catch (e) {
       _showError('فشل تصدير PDF: $e');
     } finally {
