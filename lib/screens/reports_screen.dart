@@ -12,6 +12,7 @@ import '../services/hive_service.dart';
 import '../models/stocktake_model.dart';
 import '../services/export/web_download_stub.dart'
     if (dart.library.html) '../services/export/web_download_service.dart';
+import '../services/export/pdf_font_service.dart';
 
 class ReportsScreen extends StatefulWidget {
   const ReportsScreen({super.key});
@@ -120,7 +121,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
   Future<void> _exportPdf() async {
     setState(() => _isExporting = true);
     try {
-      final pdf = pw.Document();
+      final arabicTheme = await PdfFontService.getArabicTheme();
+      final pdf = pw.Document(theme: arabicTheme);
       final entries = _allEntries;
       final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
 

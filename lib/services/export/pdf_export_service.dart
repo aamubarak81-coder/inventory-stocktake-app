@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../models/stocktake_model.dart';
 import '../../models/product_model.dart';
+import 'pdf_font_service.dart';
 
 class PdfExportService {
   static Future<Uint8List> exportStocktakeReport({
@@ -10,7 +11,8 @@ class PdfExportService {
     required List<ProductModel> products,
     required String reportTitle,
   }) async {
-    final pdf = pw.Document();
+    final arabicTheme = await PdfFontService.getArabicTheme();
+    final pdf = pw.Document(theme: arabicTheme);
     final productsMap = {for (var p in products) p.id: p};
 
     pdf.addPage(
