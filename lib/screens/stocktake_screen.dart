@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'package:geolocator/geolocator.dart';
 import 'package:provider/provider.dart';
 import '../providers/stocktake_provider.dart';
 import '../models/stocktake_model.dart';
+import '../services/location_cache_service.dart';
 
 class StocktakeScreen extends StatefulWidget {
   const StocktakeScreen({super.key});
@@ -28,6 +28,8 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
   @override
   void initState() {
     super.initState();
+    // بدء تحديث الموقع بالخلفية كل 5 دقائق (بدل ما نجيبه فرش بكل حفظ)
+    LocationCacheService.start();
     // بدء جلسة جرد جديدة عند فتح الشاشة
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<StocktakeProvider>();
@@ -39,33 +41,16 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
 
   @override
   void dispose() {
+    LocationCacheService.stop();
     _qtyController.dispose();
     _manualBarcodeController.dispose();
     _scannerController.dispose();
     super.dispose();
   }
 
-  // جلب إحداثيات GPS بصمت
-  Future<Position?> _getLocationSilently() async {
-    try {
-      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-      if (!serviceEnabled) return null;
-
-      LocationPermission permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied) {
-        permission = await Geolocator.requestPermission();
-        if (permission == LocationPermission.denied) return null;
-      }
-      if (permission == LocationPermission.deniedForever) return null;
-
-      return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: const Duration(seconds: 5),
-      );
-    } catch (_) {
-      return null; // GPS اختياري، لا نوقف الجرد إذا فشل
-    }
-  }
+  // ملاحظة: جلب GPS انتقل لـ LocationCacheService (خدمة خلفية تحدّث كل
+  // 5 دقائق)، بدل ما يُجلب فرش (fresh) بكل عملية حفظ - عشان يكون الحفظ
+  // فوري تماماً. شوف lib/services/location_cache_service.dart
 
   // معالجة الباركود الممسوح
   void _onBarcodeDetected(BarcodeCapture capture) {
@@ -111,16 +96,9 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
 
     setState(() => _isSaving = true);
 
-    // جلب GPS صامتاً - بسقف زمني كامل 6 ثواني (يغطي حتى انتظار نافذة إذن
-    // الموقع بالمتصفح، يلي ممكن تعلّق بدون حد أقصى لو المستخدم تأخر بالرد
-    // عليها). الموقع اختياري بحتة، فما نوقف الحفظ لأجله مهما صار.
-    final position = await _getLocationSilently().timeout(
-      const Duration(seconds: 6),
-      onTimeout: () => null,
-    );
-
-    // الشاشة ممكن تكون اتقفلت أثناء انتظار GPS (مثلاً المستخدم رجع للخلف)
-    if (!mounted) return;
+    // آخر موقع معروف من الذاكرة المؤقتة (يتحدّث بالخلفية كل 5 دقائق) -
+    // قراءة فورية، بدون أي انتظار شبكة أو GPS هون، عشان الحفظ يصير سريع
+    final position = LocationCacheService.lastKnownPosition;
 
     // حفظ في Hive عبر StocktakeProvider
     final provider = context.read<StocktakeProvider>();
