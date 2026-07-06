@@ -26,18 +26,34 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
   List<StocktakeModel> get _allEntries => HiveService.getStocktakes();
 
-  // إحصائيات
-  int get _total => _allEntries.length;
-  int get _matched => _allEntries
-      .where((e) => e.expectedQuantity != null && e.scannedQuantity == e.expectedQuantity)
-      .length;
-  int get _surplus => _allEntries
-      .where((e) => e.expectedQuantity != null && e.scannedQuantity > e.expectedQuantity!)
-      .length;
-  int get _deficit => _allEntries
-      .where((e) => e.expectedQuantity != null && e.scannedQuantity < e.expectedQuantity!)
-      .length;
-  int get _unsynced => _allEntries.where((e) => !e.isSynced).length;
+  // يحسب كل الإحصائيات بمرور وحدة بس على القائمة، بدل ما كانت كل إحصائية
+  // (المطابق/الزيادة/النقص/غير المتزامن) تعيد قراءة الجرد بالكامل من Hive
+  // وتفلتره من الصفر كل وحدة لحالها (5 قراءات + 5 مرورات كاملة منفصلة).
+  // مهم جداً مع تاريخ جرد كبير يتراكم عبر شهور/سنين.
+  ({int total, int matched, int surplus, int deficit, int unsynced})
+      _computeStats(List<StocktakeModel> entries) {
+    int matched = 0, surplus = 0, deficit = 0, unsynced = 0;
+    for (final e in entries) {
+      if (!e.isSynced) unsynced++;
+      if (e.expectedQuantity != null) {
+        final diff = e.scannedQuantity - e.expectedQuantity!;
+        if (diff == 0) {
+          matched++;
+        } else if (diff > 0) {
+          surplus++;
+        } else {
+          deficit++;
+        }
+      }
+    }
+    return (
+      total: entries.length,
+      matched: matched,
+      surplus: surplus,
+      deficit: deficit,
+      unsynced: unsynced,
+    );
+  }
 
   // تصدير Excel
   Future<void> _exportExcel() async {
@@ -128,6 +144,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
       final arabicTheme = await PdfFontService.getArabicTheme();
       final pdf = pw.Document(theme: arabicTheme);
       final entries = _allEntries;
+      final stats = _computeStats(entries);
       final now = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
 
       pdf.addPage(
@@ -153,10 +170,10 @@ class _ReportsScreenState extends State<ReportsScreen> {
               child: pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
                 children: [
-                  pw.Text('الإجمالي: $_total'),
-                  pw.Text('مطابق: $_matched'),
-                  pw.Text('زيادة: $_surplus'),
-                  pw.Text('نقص: $_deficit'),
+                  pw.Text('الإجمالي: ${stats.total}'),
+                  pw.Text('مطابق: ${stats.matched}'),
+                  pw.Text('زيادة: ${stats.surplus}'),
+                  pw.Text('نقص: ${stats.deficit}'),
                 ],
               ),
             ),
@@ -226,6 +243,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
   @override
   Widget build(BuildContext context) {
     final entries = _allEntries;
+    final stats = _computeStats(entries);
 
     return Scaffold(
       appBar: AppBar(
@@ -267,12 +285,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       mainAxisSpacing: 10,
                       childAspectRatio: 2,
                       children: [
-                        _StatCard('إجمالي عمليات الجرد', _total, Colors.blue, Icons.inventory),
-                        _StatCard('مطابق', _matched, Colors.green, Icons.check_circle),
-                        _StatCard('زيادة في المخزون', _surplus, Colors.teal, Icons.add_circle),
-                        _StatCard('نقص في المخزون', _deficit, Colors.red, Icons.remove_circle),
-                        _StatCard('في انتظار المزامنة', _unsynced, Colors.orange, Icons.sync),
-                        _StatCard('متزامن مع السيرفر', _total - _unsynced, Colors.purple, Icons.cloud_done),
+                        _StatCard('إجمالي عمليات الجرد', stats.total, Colors.blue, Icons.inventory),
+                        _StatCard('مطابق', stats.matched, Colors.green, Icons.check_circle),
+                        _StatCard('زيادة في المخزون', stats.surplus, Colors.teal, Icons.add_circle),
+                        _StatCard('نقص في المخزون', stats.deficit, Colors.red, Icons.remove_circle),
+                        _StatCard('في انتظار المزامنة', stats.unsynced, Colors.orange, Icons.sync),
+                        _StatCard('متزامن مع السيرفر', stats.total - stats.unsynced, Colors.purple, Icons.cloud_done),
                       ],
                     ),
                     const SizedBox(height: 24),

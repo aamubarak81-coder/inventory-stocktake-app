@@ -32,22 +32,40 @@ class HiveService {
 
   // ==================== المنتجات ====================
 
+  // فهرس بالذاكرة (barcode -> ProductModel) لتفادي البحث الخطي (O(n))
+  // بكل عملية بحث - مهم جداً مع كتالوجات كبيرة (عشرات/مئات آلاف المنتجات).
+  // يُبنى مرة عند أول استخدام، ويُعاد بناؤه تلقائياً (lazy) بعد أي تعديل
+  // على المنتجات (حفظ/حذف)، فيضمن دايماً يعكس آخر بيانات محلية.
+  static Map<String, ProductModel>? _barcodeIndex;
+
+  static Map<String, ProductModel> _buildBarcodeIndex() {
+    final box = Hive.box<ProductModel>(productBoxName);
+    final index = <String, ProductModel>{};
+    for (final p in box.values) {
+      if (p.barcode.isNotEmpty) index[p.barcode] = p;
+    }
+    return index;
+  }
+
+  static void _invalidateBarcodeIndex() {
+    _barcodeIndex = null;
+  }
+
   static List<ProductModel> getProducts() {
     return Hive.box<ProductModel>(productBoxName).values.toList();
   }
 
+  // بحث بالباركود - O(1) بدل O(n) (مهم جداً مع كتالوجات كبيرة: يُستدعى
+  // مرة لكل عملية مسح، وأيضاً مرة لكل صف بالتقارير)
   static ProductModel? getProductByBarcode(String barcode) {
-    final box = Hive.box<ProductModel>(productBoxName);
-    try {
-      return box.values.firstWhere((p) => p.barcode == barcode);
-    } catch (e) {
-      return null; // ما لقيناش منتج بهاد الباركود
-    }
+    _barcodeIndex ??= _buildBarcodeIndex();
+    return _barcodeIndex![barcode];
   }
 
   static Future<void> saveProduct(ProductModel product) async {
     final box = Hive.box<ProductModel>(productBoxName);
     await box.put(product.id, product);
+    _invalidateBarcodeIndex();
   }
 
   // حفظ عدة منتجات دفعة وحدة (bulk save)
@@ -69,11 +87,13 @@ class HiveService {
 
     if (toUpsert.isNotEmpty) await box.putAll(toUpsert);
     if (idsToDelete.isNotEmpty) await box.deleteAll(idsToDelete);
+    _invalidateBarcodeIndex();
   }
 
   static Future<void> deleteProduct(String id) async {
     final box = Hive.box<ProductModel>(productBoxName);
     await box.delete(id);
+    _invalidateBarcodeIndex();
   }
 
   static List<ProductModel> getUnsyncedProducts() {
