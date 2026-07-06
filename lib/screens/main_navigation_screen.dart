@@ -33,12 +33,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   List<Widget> get _screens => [
-    const HomeScreen(),
-    const ProductsScreen(),
+    HomeScreen(),
+    ProductsScreen(),
     const StocktakeScreen(),
-    const ResultsScreen(),
-    const ReportsScreen(),
-    if (_isAdmin) const AdminDashboardScreen(),
+    ResultsScreen(),
+    ReportsScreen(),
+    if (_isAdmin) AdminDashboardScreen(),
   ];
 
   List<BottomNavigationBarItem> get _navItems => [
