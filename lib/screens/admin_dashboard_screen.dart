@@ -137,9 +137,9 @@ class _KpiCard extends StatelessWidget {
       width: 150,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 32, color: color),
@@ -503,7 +503,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                   decoration: const InputDecoration(labelText: 'رقم الهاتف', border: OutlineInputBorder())),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: _selectedRole,
+                initialValue: _selectedRole,
                 decoration: const InputDecoration(labelText: 'الدور / الصلاحية', border: OutlineInputBorder()),
                 items: const [
                   DropdownMenuItem(value: 'employee', child: Text('موظف - جرد فقط')),
@@ -515,7 +515,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
               ),
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
-                value: _selectedWarehouseId,
+                initialValue: _selectedWarehouseId,
                 decoration: const InputDecoration(labelText: 'المستودع المخصص (اختياري)', border: OutlineInputBorder()),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('بدون مستودع محدد')),
@@ -576,7 +576,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
           title: Text('تعديل: ${emp['name']}'),
           content: Column(mainAxisSize: MainAxisSize.min, children: [
             DropdownButtonFormField<String>(
-              value: role,
+              initialValue: role,
               decoration: const InputDecoration(labelText: 'الدور / الصلاحية', border: OutlineInputBorder()),
               items: const [
                 DropdownMenuItem(value: 'employee', child: Text('موظف - جرد فقط')),
@@ -588,7 +588,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: warehouseId,
+              initialValue: warehouseId,
               decoration: const InputDecoration(labelText: 'المستودع المخصص', border: OutlineInputBorder()),
               items: [
                 const DropdownMenuItem(value: null, child: Text('بدون مستودع')),
@@ -700,8 +700,8 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                               Chip(
                                 label: Text(_roleLabel(role),
                                     style: TextStyle(color: _roleColor(role), fontSize: 11)),
-                                backgroundColor: _roleColor(role).withOpacity(0.1),
-                                side: BorderSide(color: _roleColor(role).withOpacity(0.3)),
+                                backgroundColor: _roleColor(role).withValues(alpha: 0.1),
+                                side: BorderSide(color: _roleColor(role).withValues(alpha: 0.3)),
                               ),
                               IconButton(
                                 icon: const Icon(Icons.edit, size: 18),
@@ -967,7 +967,7 @@ class _AlertsTabState extends State<_AlertsTab> {
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: (isNegative ? Colors.red : Colors.teal).withOpacity(0.15),
+                                backgroundColor: (isNegative ? Colors.red : Colors.teal).withValues(alpha: 0.15),
                                 child: Icon(
                                   isNegative ? Icons.trending_down : Icons.trending_up,
                                   color: isNegative ? Colors.red : Colors.teal,

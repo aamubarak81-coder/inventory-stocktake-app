@@ -158,7 +158,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             ),
             pw.SizedBox(height: 16),
             // جدول البيانات
-            pw.Table.fromTextArray(
+            pw.TableHelper.fromTextArray(
               headers: ['الباركود', 'الفعلي', 'الدفتري', 'الفارق', 'الحالة', 'التاريخ'],
               data: entries.map((e) {
                 final diff = e.expectedQuantity != null
@@ -383,9 +383,9 @@ class _StatCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

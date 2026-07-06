@@ -114,6 +114,9 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
     // جلب GPS صامتاً
     final position = await _getLocationSilently();
 
+    // الشاشة ممكن تكون اتقفلت أثناء انتظار GPS (مثلاً المستخدم رجع للخلف)
+    if (!mounted) return;
+
     // حفظ في Hive عبر StocktakeProvider
     final provider = context.read<StocktakeProvider>();
     final product = await provider.recordCount(
