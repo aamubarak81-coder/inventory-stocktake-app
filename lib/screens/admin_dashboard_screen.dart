@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
-import 'reports_screen.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -21,7 +20,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _EmployeesTab(key: UniqueKey()),
       const _PermissionsTab(),
       _AlertsTab(key: UniqueKey()),
-      const _ReportsTab(),
     ];
 
     return Directionality(
@@ -43,7 +41,6 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 NavigationRailDestination(icon: Icon(Icons.people), label: Text('الموظفين')),
                 NavigationRailDestination(icon: Icon(Icons.security), label: Text('الصلاحيات')),
                 NavigationRailDestination(icon: Icon(Icons.warning_amber_rounded), label: Text('التنبيهات')),
-                NavigationRailDestination(icon: Icon(Icons.bar_chart), label: Text('التقارير')),
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
@@ -1027,9 +1024,8 @@ class _AlertsTabState extends State<_AlertsTab> {
   }
 }
 
-// ==================== التقارير ====================
-class _ReportsTab extends StatelessWidget {
-  const _ReportsTab();
-  @override
-  Widget build(BuildContext context) => const ReportsScreen();
-}
+// ملاحظة: تبويب "التقارير" أُزيل من هون عمداً — كان نسخة مكررة عن
+// شاشة ReportsScreen الموجودة أصلاً بالشريط السفلي المتاح لكل المستخدمين
+// (بما فيهم المدير). كان وجود نسختين منفصلتين يسبب أحياناً عرض بيانات
+// غير متسقة بينهم بسبب اختلاف توقيت إعادة البناء لكل نسخة على حدة.
+// المدير الآن يستخدم نفس تبويب "التقارير" العام بالشريط السفلي.
