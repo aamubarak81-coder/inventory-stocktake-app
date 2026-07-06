@@ -1,4 +1,4 @@
-﻿import 'dart:typed_data';
+import 'dart:typed_data';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../../models/stocktake_model.dart';
@@ -34,7 +34,7 @@ class PdfExportService {
               pw.SizedBox(height: 8),
               pw.Center(
                 child: pw.Text(
-                  'طھط§ط±ظٹط® ط§ظ„طھظ‚ط±ظٹط±: ${DateTime.now().toString().split(' ')[0]}',
+                  'تاريخ التقرير: ${DateTime.now().toString().split(' ')[0]}',
                   style: const pw.TextStyle(
                     fontSize: 12,
                     color: PdfColors.grey600,
@@ -59,12 +59,12 @@ class PdfExportService {
                     decoration: const pw.BoxDecoration(color: PdfColors.blue100),
                     children: [
                       _headerCell('#'),
-                      _headerCell('ط§ظ„ط¨ط§ط±ظƒظˆط¯'),
-                      _headerCell('ط§ط³ظ… ط§ظ„ظ…ظ†طھط¬'),
-                      _headerCell('ط§ظ„ظ†ط¸ط§ظ…ظٹط©'),
-                      _headerCell('ط§ظ„ظ…ط¬ط±ط¯ط©'),
-                      _headerCell('ط§ظ„ظپط±ظ‚'),
-                      _headerCell('ط§ظ„ط­ط§ظ„ط©'),
+                      _headerCell('الباركود'),
+                      _headerCell('اسم المنتج'),
+                      _headerCell('النظامية'),
+                      _headerCell('المجردة'),
+                      _headerCell('الفرق'),
+                      _headerCell('الحالة'),
                     ],
                   ),
                   ...stocktakes.asMap().entries.map((entry) {
@@ -79,13 +79,13 @@ class PdfExportService {
                     PdfColor statusColor;
                     String status;
                     if (diff == 0) {
-                      status = 'ظ…ط·ط§ط¨ظ‚';
+                      status = 'مطابق';
                       statusColor = PdfColors.green;
                     } else if (diff > 0) {
-                      status = 'ط²ظٹط§ط¯ط©';
+                      status = 'زيادة';
                       statusColor = PdfColors.blue;
                     } else {
-                      status = 'ط¹ط¬ط²';
+                      status = 'عجز';
                       statusColor = PdfColors.red;
                     }
 
@@ -93,7 +93,7 @@ class PdfExportService {
                       children: [
                         _dataCell('${i + 1}'),
                         _dataCell(st.barcode),
-                        _dataCell(product?.name ?? 'ط؛ظٹط± ظ…ط¹ط±ظˆظپ'),
+                        _dataCell(product?.name ?? 'غير معروف'),
                         _dataCell('$systemQty'),
                         _dataCell('$countedQty'),
                         _dataCell('${diff > 0 ? '+' : ''}$diff', color: statusColor),
@@ -109,13 +109,13 @@ class PdfExportService {
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
                   pw.Text(
-                    'ط¥ط¬ظ…ط§ظ„ظٹ ط§ظ„ط¹ظ…ظ„ظٹط§طھ: ${stocktakes.length}',
+                    'إجمالي العمليات: ${stocktakes.length}',
                     style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                   ),
                   pw.Text(
-                    'ظ…ط·ط§ط¨ظ‚: ${stocktakes.where((s) {
+                    'مطابق: ${stocktakes.where((s) {
                       final p = productsMap[s.productId];
-                      return s.countedQuantity == (p?.quantity ?? 0);
+                      return s.scannedQuantity == (p?.systemQuantity ?? 0);
                     }).length}',
                     style: const pw.TextStyle(color: PdfColors.green),
                   ),

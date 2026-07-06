@@ -1,4 +1,3 @@
-import '../models/product_model.dart';
 import '../services/hive_service.dart';
 import '../services/supabase_service.dart';
 
@@ -11,7 +10,7 @@ class ProductRepository {
     return server;
   }
 
-  static Future<dynamic?> getByBarcode(String barcode) async {
+  static Future<dynamic> getByBarcode(String barcode) async {
     return HiveService.getProductByBarcode(barcode);
   }
 
