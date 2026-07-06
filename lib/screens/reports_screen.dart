@@ -48,7 +48,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
 
       // رأس الجدول
       final headers = [
-        'الباركود', 'معرف المنتج', 'الكمية الفعلية',
+        'الباركود', 'اسم المنتج', 'معرف المنتج', 'الكمية الفعلية',
         'الكمية الدفترية', 'الفارق', 'الحالة',
         'الموقع', 'تاريخ الجرد', 'المزامنة'
       ];
@@ -73,8 +73,12 @@ class _ReportsScreenState extends State<ReportsScreen> {
                     ? 'زيادة'
                     : 'نقص';
 
+        final productName =
+            HiveService.getProductByBarcode(e.barcode)?.name ?? 'غير معروف';
+
         final row = [
           e.barcode,
+          productName,
           e.productId,
           e.scannedQuantity.toString(),
           e.expectedQuantity?.toString() ?? '-',
@@ -159,7 +163,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             pw.SizedBox(height: 16),
             // جدول البيانات
             pw.TableHelper.fromTextArray(
-              headers: ['الباركود', 'الفعلي', 'الدفتري', 'الفارق', 'الحالة', 'التاريخ'],
+              headers: ['الباركود', 'اسم المنتج', 'الفعلي', 'الدفتري', 'الفارق', 'الحالة', 'التاريخ'],
               data: entries.map((e) {
                 final diff = e.expectedQuantity != null
                     ? e.scannedQuantity - e.expectedQuantity!
@@ -171,8 +175,11 @@ class _ReportsScreenState extends State<ReportsScreen> {
                         : diff > 0
                             ? '+$diff'
                             : '$diff';
+                final productName =
+                    HiveService.getProductByBarcode(e.barcode)?.name ?? 'غير معروف';
                 return [
                   e.barcode.isNotEmpty ? e.barcode : e.productId.substring(0, 8),
+                  productName,
                   e.scannedQuantity.toString(),
                   e.expectedQuantity?.toString() ?? '-',
                   diff.toString(),
@@ -332,17 +339,22 @@ class _ReportsScreenState extends State<ReportsScreen> {
                               : diff > 0
                                   ? Colors.teal
                                   : Colors.red;
+                      final productName =
+                          HiveService.getProductByBarcode(e.barcode)?.name;
                       return Card(
                         margin: const EdgeInsets.symmetric(vertical: 3),
                         child: ListTile(
                           dense: true,
                           leading: Icon(Icons.qr_code, color: color),
                           title: Text(
-                            e.barcode.isNotEmpty ? e.barcode : e.productId,
-                            style: const TextStyle(fontSize: 13),
+                            productName ?? (e.barcode.isNotEmpty ? e.barcode : e.productId),
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.bold),
                           ),
                           subtitle: Text(
-                            DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt),
+                            productName != null && e.barcode.isNotEmpty
+                                ? '${e.barcode} • ${DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt)}'
+                                : DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt),
                             style: const TextStyle(fontSize: 11),
                           ),
                           trailing: Column(
