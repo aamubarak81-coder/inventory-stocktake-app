@@ -23,6 +23,13 @@ class HiveService {
     await box.put(_lastProductSyncKey, time.toUtc().toIso8601String());
   }
 
+  // يمسح وقت آخر مزامنة، فتصير المزامنة التالية "كاملة" (تجيب كل المنتجات
+  // من جديد بدل الفرق فقط) - مفيد لإصلاح كاش محلي ناقص أو غير متسق
+  static Future<void> clearLastProductSync() async {
+    final box = Hive.box(metaBoxName);
+    await box.delete(_lastProductSyncKey);
+  }
+
   // ==================== المنتجات ====================
 
   static List<ProductModel> getProducts() {

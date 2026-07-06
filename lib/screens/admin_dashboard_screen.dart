@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
+import '../services/sync_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -62,6 +63,7 @@ class _DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<_DashboardTab> {
   int _bCount = 0, _wCount = 0, _eCount = 0;
   bool _loading = true;
+  bool _resyncing = false;
 
   @override
   void initState() { super.initState(); _load(); }
@@ -73,6 +75,37 @@ class _DashboardTabState extends State<_DashboardTab> {
     if (mounted) setState(() { _bCount = b.length; _wCount = w.length; _eCount = e.length; _loading = false; });
   }
 
+  Future<void> _forceFullResync() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إعادة مزامنة كاملة للمنتجات'),
+        content: const Text(
+          'هذا هيجيب كل منتجات المنظمة من جديد من السيرفر (مو بس الفرق). '
+          'مفيد لو عدد المنتجات المحلي أقل من الفعلي على السيرفر. '
+          'ممكن ياخد وقت أطول من المزامنة العادية حسب عدد المنتجات.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('تأكيد')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _resyncing = true);
+    final result = await SyncService.forceFullProductResync();
+    if (!mounted) return;
+    setState(() => _resyncing = false);
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(result.success
+          ? 'تمت المزامنة الكاملة ✅ (${result.syncedProducts} منتج)'
+          : 'فشلت المزامنة: ${result.message}'),
+      backgroundColor: result.success ? Colors.green : Colors.red,
+    ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final products = HiveService.getProducts();
@@ -80,8 +113,22 @@ class _DashboardTabState extends State<_DashboardTab> {
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('لوحة تحكم المدير',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('لوحة تحكم المدير',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            OutlinedButton.icon(
+              onPressed: _resyncing ? null : _forceFullResync,
+              icon: _resyncing
+                  ? const SizedBox(
+                      width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : const Icon(Icons.cloud_sync, size: 18),
+              label: Text(_resyncing ? 'جارِ المزامنة...' : 'إعادة مزامنة كاملة للمنتجات'),
+            ),
+          ],
+        ),
         const SizedBox(height: 20),
         if (_loading) const CircularProgressIndicator()
         else Wrap(spacing: 16, runSpacing: 16, children: [

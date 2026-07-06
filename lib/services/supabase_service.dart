@@ -37,7 +37,11 @@ class SupabaseService {
       }
 
       final response = await query
-          .order('updated_at') // مهم لضمان ترتيب ثابت عبر الصفحات (pagination)
+          .order('updated_at') // الترتيب الأساسي (للمزامنة التدريجية)
+          .order('id') // معيار ثانوي فريد - يضمن ترتيب ثابت 100% حتى لو
+              // تساوى updated_at بين عدة صفوف (شائع بعد استيراد جماعي)،
+              // وإلا pagination بالـ range() ممكن تتخطى أو تكرر صفوف
+              // بشكل غير متوقع بين استعلام وتاني
           .range(from, from + _pageSize - 1);
 
       final data = response as List;

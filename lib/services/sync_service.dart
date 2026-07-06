@@ -54,6 +54,14 @@ class SyncService {
     return result;
   }
 
+  /// يمسح وقت آخر مزامنة منتجات ويجبر مزامنة كاملة (يجيب كل منتجات
+  /// المنظمة من جديد بدل الفرق فقط) - مفيد لإصلاح كاش محلي ناقص، مثلاً
+  /// بسبب مشكلة pagination قديمة تم إصلاحها لاحقاً بالسيرفر
+  static Future<SyncResult> forceFullProductResync() async {
+    await HiveService.clearLastProductSync();
+    return syncAll();
+  }
+
   static Future<SyncResult> syncAll() async {
     if (!await isOnline()) {
       return SyncResult(
