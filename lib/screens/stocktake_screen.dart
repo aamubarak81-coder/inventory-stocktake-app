@@ -111,8 +111,13 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
 
     setState(() => _isSaving = true);
 
-    // جلب GPS صامتاً
-    final position = await _getLocationSilently();
+    // جلب GPS صامتاً - بسقف زمني كامل 6 ثواني (يغطي حتى انتظار نافذة إذن
+    // الموقع بالمتصفح، يلي ممكن تعلّق بدون حد أقصى لو المستخدم تأخر بالرد
+    // عليها). الموقع اختياري بحتة، فما نوقف الحفظ لأجله مهما صار.
+    final position = await _getLocationSilently().timeout(
+      const Duration(seconds: 6),
+      onTimeout: () => null,
+    );
 
     // الشاشة ممكن تكون اتقفلت أثناء انتظار GPS (مثلاً المستخدم رجع للخلف)
     if (!mounted) return;
