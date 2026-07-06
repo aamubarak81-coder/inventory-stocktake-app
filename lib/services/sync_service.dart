@@ -1,16 +1,57 @@
-﻿import 'package:connectivity_plus/connectivity_plus.dart';
+﻿import 'dart:async' show unawaited;
+import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import '../models/product_model.dart';
 import 'discrepancy_alert_service.dart';
 import 'hive_service.dart';
 import 'supabase_service.dart';
 
 class SyncService {
+  static bool _isSyncing = false;
+  static bool _syncAgainRequested = false;
+
+  /// تعكس هل في مزامنة تلقائية (بالخلفية) شغالة حالياً - أي شاشة تقدر
+  /// تستمع لها (ValueListenableBuilder) لعرض مؤشر بسيط للمستخدم لو حبت،
+  /// بدون ما تكون مضطرة تدير الحالة بنفسها.
+  static final ValueNotifier<bool> autoSyncingNotifier = ValueNotifier(false);
+
   static Future<bool> isOnline() async {
     final dynamic result = await Connectivity().checkConnectivity();
     if (result is List<ConnectivityResult>) {
       return result.isNotEmpty && !result.contains(ConnectivityResult.none);
     }
     return result != ConnectivityResult.none;
+  }
+
+  /// نسخة "آمنة من التداخل" من syncAll، مخصصة للمزامنة التلقائية بالخلفية
+  /// (مثلاً فور تسجيل عملية جرد). لو في مزامنة شغالة أصلاً، ما نبدأ وحدة
+  /// جديدة فوق بعض - بس نسجّل طلب "شغّلها كمان مرة" بعد ما تخلص الحالية،
+  /// عشان نغطي أي عملية جرد جديدة انسجلت أثناء تنفيذ المزامنة الحالية.
+  /// بترجع null لو تخطّت التنفيذ بسبب مزامنة شغالة أصلاً (مو فشل حقيقي).
+  static Future<SyncResult?> syncIfIdle() async {
+    if (_isSyncing) {
+      _syncAgainRequested = true;
+      return null;
+    }
+
+    _isSyncing = true;
+    autoSyncingNotifier.value = true;
+    SyncResult result;
+    try {
+      result = await syncAll();
+    } finally {
+      _isSyncing = false;
+    }
+
+    if (_syncAgainRequested) {
+      _syncAgainRequested = false;
+      // نطلقها بدون انتظار (fire-and-forget) عشان ما نأخر الاستدعاء الحالي
+      unawaited(syncIfIdle());
+    } else {
+      autoSyncingNotifier.value = false;
+    }
+
+    return result;
   }
 
   static Future<SyncResult> syncAll() async {

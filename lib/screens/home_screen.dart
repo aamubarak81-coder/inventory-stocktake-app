@@ -22,10 +22,22 @@ class _HomeScreenState extends State<HomeScreen> {
 
     setState(() => _isSyncing = true);
 
-    final result = await SyncService.syncAll();
+    final result = await SyncService.syncIfIdle();
 
     if (!mounted) return; // الشاشة ممكن تكون اتقفلت أثناء انتظار المزامنة
     setState(() => _isSyncing = false);
+
+    // result == null يعني في مزامنة تلقائية شغالة بالخلفية أصلاً (مثلاً
+    // بسبب عملية جرد حديثة) - مش خطأ، بس نعلم المستخدم إنها هتخلص لحالها
+    if (result == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('في مزامنة شغالة بالفعل بالخلفية، رح تخلص قريباً ⏳'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    }
 
     final message = result.success
         ? 'تمت المزامنة ✅  (منتجات: ${result.syncedProducts}، جرد: ${result.syncedStocktakes})'

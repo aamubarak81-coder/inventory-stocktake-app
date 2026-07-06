@@ -1,9 +1,11 @@
+import 'dart:async' show unawaited;
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import '../models/product_model.dart';
 import '../models/stocktake_model.dart';
 import '../services/hive_service.dart';
 import '../services/auth_service.dart';
+import '../services/sync_service.dart';
 
 class StocktakeProvider extends ChangeNotifier {
   final Uuid _uuid = const Uuid();
@@ -71,6 +73,13 @@ class StocktakeProvider extends ChangeNotifier {
     await HiveService.saveStocktake(entry);
     _currentSessionEntries.add(entry);
     notifyListeners();
+
+    // مزامنة تلقائية فورية بالخلفية: نطلقها بدون انتظار (fire-and-forget)
+    // عشان ما نأخر واجهة المستخدم ولا نمنعه من متابعة الجرد فوراً.
+    // لو ما في اتصال إنترنت هالحظة، العملية بتضل محفوظة محلياً وغير متزامنة
+    // (isSynced = false)، وبتتلقط تلقائياً بأول محاولة مزامنة ناجحة لاحقة
+    // (سواء تلقائية بعملية جرد جاية، أو يدوية بزر "مزامنة الآن").
+    unawaited(SyncService.syncIfIdle().then((_) => refresh()));
 
     return product;
   }
