@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
 import '../services/sync_service.dart';
+import '../services/detailed_reports_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -21,6 +22,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _EmployeesTab(key: UniqueKey()),
       const _PermissionsTab(),
       _AlertsTab(key: UniqueKey()),
+      _DetailedReportsTab(key: UniqueKey()),
     ];
 
     return Directionality(
@@ -42,6 +44,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 NavigationRailDestination(icon: Icon(Icons.people), label: Text('الموظفين')),
                 NavigationRailDestination(icon: Icon(Icons.security), label: Text('الصلاحيات')),
                 NavigationRailDestination(icon: Icon(Icons.warning_amber_rounded), label: Text('التنبيهات')),
+                NavigationRailDestination(icon: Icon(Icons.insights), label: Text('تقارير تفصيلية')),
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
@@ -1071,7 +1074,230 @@ class _AlertsTabState extends State<_AlertsTab> {
   }
 }
 
-// ملاحظة: تبويب "التقارير" أُزيل من هون عمداً — كان نسخة مكررة عن
+// ==================== تقارير تفصيلية (فروع/مستودعات/موظفين) ====================
+class _DetailedReportsTab extends StatefulWidget {
+  const _DetailedReportsTab({super.key});
+  @override
+  State<_DetailedReportsTab> createState() => _DetailedReportsTabState();
+}
+
+class _DetailedReportsTabState extends State<_DetailedReportsTab>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController;
+  DetailedReportResult? _result;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() { _loading = true; _error = null; });
+    try {
+      // بيانات المنظمة (فروع/مستودعات/موظفين) تحتاج اتصال إنترنت -
+      // بنجيبها بالتوازي لتسريع التحميل
+      final results = await Future.wait([
+        AdminService.getBranches(),
+        AdminService.getWarehouses(),
+        AdminService.getEmployees(),
+      ]);
+      final branches = results[0];
+      final warehouses = results[1];
+      final employees = results[2];
+
+      // بيانات الجرد والمنتجات محلية (Hive) - شغالة حتى بدون نت
+      final products = HiveService.getProducts();
+      final stocktakes = HiveService.getStocktakes();
+
+      final computed = DetailedReportsService.compute(
+        products: products,
+        stocktakes: stocktakes,
+        branches: branches,
+        warehouses: warehouses,
+        employees: employees,
+      );
+
+      if (mounted) setState(() { _result = computed; _loading = false; });
+    } catch (e) {
+      if (mounted) setState(() { _error = 'فشل تحميل التقرير: $e'; _loading = false; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('تقارير تفصيلية',
+                  style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+              IconButton(
+                tooltip: 'تحديث',
+                onPressed: _loading ? null : _load,
+                icon: const Icon(Icons.refresh),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _error != null
+                    ? Center(child: Text(_error!, style: const TextStyle(color: Colors.red)))
+                    : _buildContent(_result!),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(DetailedReportResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _OverallCoverageCard(stat: result.overall),
+        const SizedBox(height: 16),
+        TabBar(
+          controller: _tabController,
+          labelColor: Colors.blue,
+          unselectedLabelColor: Colors.grey,
+          tabs: const [
+            Tab(text: 'حسب الفرع'),
+            Tab(text: 'حسب المستودع'),
+            Tab(text: 'حسب الموظف'),
+          ],
+        ),
+        Expanded(
+          child: TabBarView(
+            controller: _tabController,
+            children: [
+              _GroupStatTable(items: result.byBranch, emptyText: 'لا توجد فروع'),
+              _GroupStatTable(items: result.byWarehouse, emptyText: 'لا توجد مستودعات'),
+              _EmployeeStatTable(items: result.byEmployee),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _OverallCoverageCard extends StatelessWidget {
+  final GroupStat stat;
+  const _OverallCoverageCard({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: Colors.blue[50],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceAround,
+          children: [
+            _miniStat('تم جرده', '${stat.countedProducts}', Colors.blue),
+            _miniStat('متبقي', '${stat.remaining}', Colors.grey),
+            _miniStat('التغطية', '${stat.coveragePercent.toStringAsFixed(0)}%', Colors.indigo),
+            _miniStat('مطابق', '${stat.matched}', Colors.green),
+            _miniStat('زيادة', '${stat.surplus}', Colors.teal),
+            _miniStat('نقص', '${stat.deficit}', Colors.red),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _miniStat(String label, String value, Color color) {
+    return Column(children: [
+      Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+    ]);
+  }
+}
+
+class _GroupStatTable extends StatelessWidget {
+  final List<GroupStat> items;
+  final String emptyText;
+  const _GroupStatTable({required this.items, required this.emptyText});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return Center(child: Text(emptyText, style: const TextStyle(color: Colors.grey)));
+    }
+    return SingleChildScrollView(
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('الاسم')),
+          DataColumn(label: Text('تم جرده / الإجمالي')),
+          DataColumn(label: Text('التغطية')),
+          DataColumn(label: Text('مطابق')),
+          DataColumn(label: Text('زيادة')),
+          DataColumn(label: Text('نقص')),
+        ],
+        rows: items.map((s) {
+          return DataRow(cells: [
+            DataCell(Text(s.name)),
+            DataCell(Text('${s.countedProducts} / ${s.totalProducts}')),
+            DataCell(Text('${s.coveragePercent.toStringAsFixed(0)}%')),
+            DataCell(Text('${s.matched}', style: const TextStyle(color: Colors.green))),
+            DataCell(Text('${s.surplus}', style: const TextStyle(color: Colors.teal))),
+            DataCell(Text('${s.deficit}', style: const TextStyle(color: Colors.red))),
+          ]);
+        }).toList(),
+      ),
+    );
+  }
+}
+
+class _EmployeeStatTable extends StatelessWidget {
+  final List<EmployeeStat> items;
+  const _EmployeeStatTable({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    if (items.isEmpty) {
+      return const Center(child: Text('لا توجد عمليات جرد بعد', style: TextStyle(color: Colors.grey)));
+    }
+    return SingleChildScrollView(
+      child: DataTable(
+        columns: const [
+          DataColumn(label: Text('الموظف')),
+          DataColumn(label: Text('عدد العمليات')),
+          DataColumn(label: Text('أصناف مميزة')),
+          DataColumn(label: Text('مطابق')),
+          DataColumn(label: Text('زيادة')),
+          DataColumn(label: Text('نقص')),
+        ],
+        rows: items.map((e) {
+          return DataRow(cells: [
+            DataCell(Text(e.name)),
+            DataCell(Text('${e.totalScans}')),
+            DataCell(Text('${e.distinctProducts}')),
+            DataCell(Text('${e.matched}', style: const TextStyle(color: Colors.green))),
+            DataCell(Text('${e.surplus}', style: const TextStyle(color: Colors.teal))),
+            DataCell(Text('${e.deficit}', style: const TextStyle(color: Colors.red))),
+          ]);
+        }).toList(),
+      ),
+    );
+  }
+}
 // شاشة ReportsScreen الموجودة أصلاً بالشريط السفلي المتاح لكل المستخدمين
 // (بما فيهم المدير). كان وجود نسختين منفصلتين يسبب أحياناً عرض بيانات
 // غير متسقة بينهم بسبب اختلاف توقيت إعادة البناء لكل نسخة على حدة.
