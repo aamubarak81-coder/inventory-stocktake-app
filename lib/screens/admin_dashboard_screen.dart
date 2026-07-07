@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
 import '../services/sync_service.dart';
@@ -1091,7 +1092,7 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -1179,6 +1180,7 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
             Tab(text: 'حسب الفرع'),
             Tab(text: 'حسب المستودع'),
             Tab(text: 'حسب الموظف'),
+            Tab(text: 'حسب الصنف'),
           ],
         ),
         Expanded(
@@ -1188,6 +1190,7 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
               _GroupStatTable(items: result.byBranch, emptyText: 'لا توجد فروع'),
               _GroupStatTable(items: result.byWarehouse, emptyText: 'لا توجد مستودعات'),
               _EmployeeStatTable(items: result.byEmployee),
+              _ProductDiscrepancyTab(items: result.byProduct),
             ],
           ),
         ),
@@ -1208,14 +1211,82 @@ class _OverallCoverageCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
-            _miniStat('تم جرده', '${stat.countedProducts}', Colors.blue),
-            _miniStat('متبقي', '${stat.remaining}', Colors.grey),
-            _miniStat('التغطية', '${stat.coveragePercent.toStringAsFixed(0)}%', Colors.indigo),
-            _miniStat('مطابق', '${stat.matched}', Colors.green),
-            _miniStat('زيادة', '${stat.surplus}', Colors.teal),
-            _miniStat('نقص', '${stat.deficit}', Colors.red),
+            Expanded(
+              flex: 3,
+              child: Wrap(
+                alignment: WrapAlignment.spaceAround,
+                runSpacing: 12,
+                children: [
+                  _miniStat('تم جرده', '${stat.countedProducts}', Colors.blue),
+                  _miniStat('متبقي', '${stat.remaining}', Colors.grey),
+                  _miniStat('التغطية', '${stat.coveragePercent.toStringAsFixed(0)}%', Colors.indigo),
+                  _miniStat('مطابق', '${stat.matched}', Colors.green),
+                  _miniStat('زيادة', '${stat.surplus}', Colors.teal),
+                  _miniStat('نقص', '${stat.deficit}', Colors.red),
+                ],
+              ),
+            ),
+            // رسم دائري يوضح توزيع حالة الأصناف المجرودة (مطابق/زيادة/نقص)
+            if (stat.countedProducts > 0)
+              Expanded(
+                flex: 2,
+                child: SizedBox(
+                  height: 130,
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: PieChart(
+                          PieChartData(
+                            sectionsSpace: 2,
+                            centerSpaceRadius: 28,
+                            sections: [
+                              if (stat.matched > 0)
+                                PieChartSectionData(
+                                  value: stat.matched.toDouble(),
+                                  color: Colors.green,
+                                  title: '${stat.matched}',
+                                  radius: 45,
+                                  titleStyle: const TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              if (stat.surplus > 0)
+                                PieChartSectionData(
+                                  value: stat.surplus.toDouble(),
+                                  color: Colors.teal,
+                                  title: '${stat.surplus}',
+                                  radius: 45,
+                                  titleStyle: const TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                              if (stat.deficit > 0)
+                                PieChartSectionData(
+                                  value: stat.deficit.toDouble(),
+                                  color: Colors.red,
+                                  title: '${stat.deficit}',
+                                  radius: 45,
+                                  titleStyle: const TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          _LegendDot(color: Colors.green, label: 'مطابق'),
+                          SizedBox(height: 6),
+                          _LegendDot(color: Colors.teal, label: 'زيادة'),
+                          SizedBox(height: 6),
+                          _LegendDot(color: Colors.red, label: 'نقص'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
           ],
         ),
       ),
@@ -1226,6 +1297,21 @@ class _OverallCoverageCard extends StatelessWidget {
     return Column(children: [
       Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: color)),
       Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+    ]);
+  }
+}
+
+class _LegendDot extends StatelessWidget {
+  final Color color;
+  final String label;
+  const _LegendDot({required this.color, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+      const SizedBox(width: 6),
+      Text(label, style: const TextStyle(fontSize: 12)),
     ]);
   }
 }
@@ -1241,25 +1327,231 @@ class _GroupStatTable extends StatelessWidget {
       return Center(child: Text(emptyText, style: const TextStyle(color: Colors.grey)));
     }
     return SingleChildScrollView(
-      child: DataTable(
-        columns: const [
-          DataColumn(label: Text('الاسم')),
-          DataColumn(label: Text('تم جرده / الإجمالي')),
-          DataColumn(label: Text('التغطية')),
-          DataColumn(label: Text('مطابق')),
-          DataColumn(label: Text('زيادة')),
-          DataColumn(label: Text('نقص')),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Text('نسبة التغطية', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+          ...items.map((s) => _CoverageBarRow(stat: s)),
+          const SizedBox(height: 16),
+          DataTable(
+            columns: const [
+              DataColumn(label: Text('الاسم')),
+              DataColumn(label: Text('تم جرده / الإجمالي')),
+              DataColumn(label: Text('التغطية')),
+              DataColumn(label: Text('مطابق')),
+              DataColumn(label: Text('زيادة')),
+              DataColumn(label: Text('نقص')),
+            ],
+            rows: items.map((s) {
+              return DataRow(cells: [
+                DataCell(Text(s.name)),
+                DataCell(Text('${s.countedProducts} / ${s.totalProducts}')),
+                DataCell(Text('${s.coveragePercent.toStringAsFixed(0)}%')),
+                DataCell(Text('${s.matched}', style: const TextStyle(color: Colors.green))),
+                DataCell(Text('${s.surplus}', style: const TextStyle(color: Colors.teal))),
+                DataCell(Text('${s.deficit}', style: const TextStyle(color: Colors.red))),
+              ]);
+            }).toList(),
+          ),
         ],
-        rows: items.map((s) {
-          return DataRow(cells: [
-            DataCell(Text(s.name)),
-            DataCell(Text('${s.countedProducts} / ${s.totalProducts}')),
-            DataCell(Text('${s.coveragePercent.toStringAsFixed(0)}%')),
-            DataCell(Text('${s.matched}', style: const TextStyle(color: Colors.green))),
-            DataCell(Text('${s.surplus}', style: const TextStyle(color: Colors.teal))),
-            DataCell(Text('${s.deficit}', style: const TextStyle(color: Colors.red))),
-          ]);
-        }).toList(),
+      ),
+    );
+  }
+}
+
+class _CoverageBarRow extends StatelessWidget {
+  final GroupStat stat;
+  const _CoverageBarRow({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    final percent = (stat.coveragePercent / 100).clamp(0.0, 1.0);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(stat.name, overflow: TextOverflow.ellipsis, maxLines: 1),
+          ),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Stack(
+                children: [
+                  Container(height: 18, color: Colors.grey[200]),
+                  FractionallySizedBox(
+                    widthFactor: percent,
+                    child: Container(
+                      height: 18,
+                      color: percent >= 1
+                          ? Colors.green
+                          : percent >= 0.5
+                              ? Colors.blue
+                              : Colors.orange,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 44,
+            child: Text('${stat.coveragePercent.toStringAsFixed(0)}%',
+                style: const TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _ProductFilter { all, deficitOnly, surplusOnly, matchedOnly }
+
+class _ProductDiscrepancyTab extends StatefulWidget {
+  final List<ProductDiscrepancy> items;
+  const _ProductDiscrepancyTab({required this.items});
+
+  @override
+  State<_ProductDiscrepancyTab> createState() => _ProductDiscrepancyTabState();
+}
+
+class _ProductDiscrepancyTabState extends State<_ProductDiscrepancyTab> {
+  bool _descending = true; // الأكبر فرق أول (افتراضي)
+  _ProductFilter _filter = _ProductFilter.all;
+
+  List<ProductDiscrepancy> get _filtered {
+    switch (_filter) {
+      case _ProductFilter.deficitOnly:
+        return widget.items.where((p) => p.diff < 0).toList();
+      case _ProductFilter.surplusOnly:
+        return widget.items.where((p) => p.diff > 0).toList();
+      case _ProductFilter.matchedOnly:
+        return widget.items.where((p) => p.diff == 0).toList();
+      case _ProductFilter.all:
+        return List.of(widget.items);
+    }
+  }
+
+  List<ProductDiscrepancy> get _sorted {
+    final list = _filtered;
+    list.sort((a, b) => _descending
+        ? b.diff.abs().compareTo(a.diff.abs())
+        : a.diff.abs().compareTo(b.diff.abs()));
+    return list;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.items.isEmpty) {
+      return const Center(
+          child: Text('لا توجد عمليات جرد بعد', style: TextStyle(color: Colors.grey)));
+    }
+
+    final sorted = _sorted;
+    final top10 = sorted.take(10).toList();
+    final maxAbsDiff = top10.isEmpty
+        ? 1
+        : top10.map((p) => p.diff.abs()).reduce((a, b) => a > b ? a : b);
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ChoiceChip(
+                label: const Text('الكل'),
+                selected: _filter == _ProductFilter.all,
+                onSelected: (_) => setState(() => _filter = _ProductFilter.all),
+              ),
+              ChoiceChip(
+                label: const Text('نقص فقط'),
+                selected: _filter == _ProductFilter.deficitOnly,
+                onSelected: (_) => setState(() => _filter = _ProductFilter.deficitOnly),
+              ),
+              ChoiceChip(
+                label: const Text('زيادة فقط'),
+                selected: _filter == _ProductFilter.surplusOnly,
+                onSelected: (_) => setState(() => _filter = _ProductFilter.surplusOnly),
+              ),
+              ChoiceChip(
+                label: const Text('مطابق فقط'),
+                selected: _filter == _ProductFilter.matchedOnly,
+                onSelected: (_) => setState(() => _filter = _ProductFilter.matchedOnly),
+              ),
+              const SizedBox(width: 8),
+              TextButton.icon(
+                onPressed: () => setState(() => _descending = !_descending),
+                icon: Icon(_descending ? Icons.arrow_downward : Icons.arrow_upward, size: 16),
+                label: Text(_descending ? 'الأكبر فرق أولاً' : 'الأصغر فرق أولاً'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (top10.isNotEmpty && _filter != _ProductFilter.matchedOnly) ...[
+            const Text('أكبر 10 فروقات', style: TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            ...top10.map((p) {
+              final ratio = maxAbsDiff == 0 ? 0.0 : p.diff.abs() / maxAbsDiff;
+              final color = p.diff < 0 ? Colors.red : (p.diff > 0 ? Colors.teal : Colors.green);
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 140,
+                      child: Text(p.name, overflow: TextOverflow.ellipsis, maxLines: 1,
+                          style: const TextStyle(fontSize: 12)),
+                    ),
+                    Expanded(
+                      child: FractionallySizedBox(
+                        alignment: Alignment.centerRight,
+                        widthFactor: ratio.clamp(0.02, 1.0),
+                        child: Container(height: 14, color: color),
+                      ),
+                    ),
+                    SizedBox(
+                      width: 50,
+                      child: Text(
+                        '${p.diff > 0 ? '+' : ''}${p.diff}',
+                        textAlign: TextAlign.left,
+                        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }),
+            const SizedBox(height: 20),
+          ],
+          DataTable(
+            columns: const [
+              DataColumn(label: Text('الصنف')),
+              DataColumn(label: Text('الباركود')),
+              DataColumn(label: Text('الفعلي')),
+              DataColumn(label: Text('الدفتري')),
+              DataColumn(label: Text('الفرق')),
+            ],
+            rows: sorted.map((p) {
+              final color = p.diff < 0 ? Colors.red : (p.diff > 0 ? Colors.teal : Colors.green);
+              return DataRow(cells: [
+                DataCell(Text(p.name)),
+                DataCell(Text(p.barcode)),
+                DataCell(Text('${p.scannedQuantity}')),
+                DataCell(Text('${p.expectedQuantity ?? '-'}')),
+                DataCell(Text('${p.diff > 0 ? '+' : ''}${p.diff}',
+                    style: TextStyle(color: color, fontWeight: FontWeight.bold))),
+              ]);
+            }).toList(),
+          ),
+        ],
       ),
     );
   }

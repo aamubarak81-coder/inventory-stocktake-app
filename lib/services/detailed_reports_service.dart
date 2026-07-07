@@ -50,17 +50,40 @@ class EmployeeStat {
   });
 }
 
+/// تفاصيل فرق صنف واحد (الأحدث جرد له) - تُستخدم لعرض/ترتيب الأصناف
+/// حسب حجم الفرق (زيادة أو نقص).
+class ProductDiscrepancy {
+  final String productId;
+  final String name;
+  final String barcode;
+  final int? expectedQuantity;
+  final int scannedQuantity;
+
+  ProductDiscrepancy({
+    required this.productId,
+    required this.name,
+    required this.barcode,
+    required this.expectedQuantity,
+    required this.scannedQuantity,
+  });
+
+  int get diff =>
+      expectedQuantity == null ? 0 : scannedQuantity - expectedQuantity!;
+}
+
 class DetailedReportResult {
   final GroupStat overall;
   final List<GroupStat> byBranch;
   final List<GroupStat> byWarehouse;
   final List<EmployeeStat> byEmployee;
+  final List<ProductDiscrepancy> byProduct;
 
   DetailedReportResult({
     required this.overall,
     required this.byBranch,
     required this.byWarehouse,
     required this.byEmployee,
+    required this.byProduct,
   });
 }
 
@@ -222,11 +245,25 @@ class DetailedReportsService {
     }).toList()
       ..sort((a, b) => b.totalScans.compareTo(a.totalScans));
 
+    // 6) تفصيل كل صنف على حدة (من "آخر جرد لكل صنف") - يُستخدم لعرض/ترتيب
+    // الأصناف حسب حجم الفرق (زيادة أو نقص)، من الأقل للأكثر أو العكس
+    final byProduct = latestByProduct.values.map((s) {
+      final product = productsById[s.productId];
+      return ProductDiscrepancy(
+        productId: s.productId,
+        name: product?.name ?? 'منتج محذوف',
+        barcode: product?.barcode ?? s.barcode,
+        expectedQuantity: s.expectedQuantity,
+        scannedQuantity: s.scannedQuantity,
+      );
+    }).toList();
+
     return DetailedReportResult(
       overall: overall,
       byBranch: byBranch,
       byWarehouse: byWarehouse,
       byEmployee: byEmployee,
+      byProduct: byProduct,
     );
   }
 }
