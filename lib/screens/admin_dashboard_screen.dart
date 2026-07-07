@@ -4,6 +4,8 @@ import '../services/admin_service.dart';
 import '../services/hive_service.dart';
 import '../services/sync_service.dart';
 import '../services/detailed_reports_service.dart';
+import '../models/product_model.dart';
+import '../models/stocktake_model.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -1085,9 +1087,23 @@ class _DetailedReportsTab extends StatefulWidget {
 class _DetailedReportsTabState extends State<_DetailedReportsTab>
     with SingleTickerProviderStateMixin {
   late final TabController _tabController;
-  DetailedReportResult? _result;
   bool _loading = true;
   String? _error;
+
+  // البيانات الخام (قبل الفلترة) - نخزّنها هون عشان نقدر نعيد الحساب
+  // فوراً (بدون أي نداء شبكة جديد) كل ما المستخدم يغيّر اختيار بالفلاتر
+  List<Map<String, dynamic>> _allBranches = [];
+  List<Map<String, dynamic>> _allWarehouses = [];
+  List<Map<String, dynamic>> _allEmployees = [];
+  List<ProductModel> _allProducts = [];
+  List<StocktakeModel> _allStocktakes = [];
+
+  // اختيارات الفلاتر الحالية (null = "الكل")
+  String? _selectedBranchId;
+  String? _selectedWarehouseId;
+  String? _selectedEmployeeId;
+
+  DetailedReportResult? _result;
 
   @override
   void initState() {
@@ -1112,26 +1128,75 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
         AdminService.getWarehouses(),
         AdminService.getEmployees(),
       ]);
-      final branches = results[0];
-      final warehouses = results[1];
-      final employees = results[2];
 
+      _allBranches = results[0];
+      _allWarehouses = results[1];
+      _allEmployees = results[2];
       // بيانات الجرد والمنتجات محلية (Hive) - شغالة حتى بدون نت
-      final products = HiveService.getProducts();
-      final stocktakes = HiveService.getStocktakes();
+      _allProducts = HiveService.getProducts();
+      _allStocktakes = HiveService.getStocktakes();
 
-      final computed = DetailedReportsService.compute(
-        products: products,
-        stocktakes: stocktakes,
-        branches: branches,
-        warehouses: warehouses,
-        employees: employees,
-      );
-
-      if (mounted) setState(() { _result = computed; _loading = false; });
+      if (mounted) {
+        setState(() { _loading = false; });
+        _recompute();
+      }
     } catch (e) {
       if (mounted) setState(() { _error = 'فشل تحميل التقرير: $e'; _loading = false; });
     }
+  }
+
+  // يعيد بناء نتيجة التقرير بناءً على الفلاتر الحالية، عبر تضييق البيانات
+  // الخام قبل تمريرها لـ DetailedReportsService.compute() - بدون أي نداء
+  // شبكة جديد، فورية بالكامل
+  void _recompute() {
+    // فروع/مستودعات ضمن نطاق الفرع المختار (لو اتحدد)
+    final warehouses = _selectedBranchId == null
+        ? _allWarehouses
+        : _allWarehouses
+            .where((w) => w['branch_id']?.toString() == _selectedBranchId)
+            .toList();
+
+    final warehouseIdsInScope = warehouses.map((w) => w['id'].toString()).toSet();
+
+    // لو اتحدد مستودع معيّن، نضيّق أكتر لمستودع واحد بس
+    final effectiveWarehouseIds = _selectedWarehouseId != null
+        ? {_selectedWarehouseId!}
+        : warehouseIdsInScope;
+
+    final products = _allProducts
+        .where((p) => effectiveWarehouseIds.contains(p.warehouseId))
+        .toList();
+    final productIdsInScope = products.map((p) => p.id).toSet();
+
+    var stocktakes = _allStocktakes
+        .where((s) => productIdsInScope.contains(s.productId))
+        .toList();
+
+    if (_selectedEmployeeId != null) {
+      stocktakes = stocktakes.where((s) => s.scannedBy == _selectedEmployeeId).toList();
+    }
+
+    final branches = _selectedBranchId == null
+        ? _allBranches
+        : _allBranches.where((b) => b['id'].toString() == _selectedBranchId).toList();
+
+    final effectiveWarehousesForDisplay = _selectedWarehouseId == null
+        ? warehouses
+        : warehouses.where((w) => w['id'].toString() == _selectedWarehouseId).toList();
+
+    final employees = _selectedEmployeeId == null
+        ? _allEmployees
+        : _allEmployees.where((e) => e['id'].toString() == _selectedEmployeeId).toList();
+
+    setState(() {
+      _result = DetailedReportsService.compute(
+        products: products,
+        stocktakes: stocktakes,
+        branches: branches,
+        warehouses: effectiveWarehousesForDisplay,
+        employees: employees,
+      );
+    });
   }
 
   @override
@@ -1166,10 +1231,101 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
     );
   }
 
+  Widget _buildFilterBar() {
+    // خيارات المستودعات تُفلتر حسب الفرع المختار (لو اتحدد)
+    final warehouseOptions = _selectedBranchId == null
+        ? _allWarehouses
+        : _allWarehouses
+            .where((w) => w['branch_id']?.toString() == _selectedBranchId)
+            .toList();
+
+    return Wrap(
+      spacing: 12,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            initialValue: _selectedBranchId,
+            decoration: const InputDecoration(labelText: 'الفرع', isDense: true, border: OutlineInputBorder()),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('كل الفروع')),
+              ..._allBranches.map((b) => DropdownMenuItem<String?>(
+                    value: b['id'].toString(),
+                    child: Text(b['name']?.toString() ?? '-'),
+                  )),
+            ],
+            onChanged: (value) {
+              _selectedBranchId = value;
+              // لو تغيّر الفرع، لازم نصفّر اختيار المستودع لو ما عاد
+              // ضمن نطاق الفرع الجديد
+              final stillValid = value == null ||
+                  _allWarehouses.any((w) =>
+                      w['id'].toString() == _selectedWarehouseId &&
+                      w['branch_id']?.toString() == value);
+              if (!stillValid) _selectedWarehouseId = null;
+              _recompute();
+            },
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            initialValue: _selectedWarehouseId,
+            decoration: const InputDecoration(labelText: 'المستودع', isDense: true, border: OutlineInputBorder()),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('كل المستودعات')),
+              ...warehouseOptions.map((w) => DropdownMenuItem<String?>(
+                    value: w['id'].toString(),
+                    child: Text(w['name']?.toString() ?? '-'),
+                  )),
+            ],
+            onChanged: (value) {
+              _selectedWarehouseId = value;
+              _recompute();
+            },
+          ),
+        ),
+        SizedBox(
+          width: 200,
+          child: DropdownButtonFormField<String?>(
+            initialValue: _selectedEmployeeId,
+            decoration: const InputDecoration(labelText: 'الموظف', isDense: true, border: OutlineInputBorder()),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('كل الموظفين')),
+              ..._allEmployees.map((e) => DropdownMenuItem<String?>(
+                    value: e['id'].toString(),
+                    child: Text(e['name']?.toString() ?? '-'),
+                  )),
+            ],
+            onChanged: (value) {
+              _selectedEmployeeId = value;
+              _recompute();
+            },
+          ),
+        ),
+        if (_selectedBranchId != null || _selectedWarehouseId != null || _selectedEmployeeId != null)
+          TextButton.icon(
+            onPressed: () {
+              _selectedBranchId = null;
+              _selectedWarehouseId = null;
+              _selectedEmployeeId = null;
+              _recompute();
+            },
+            icon: const Icon(Icons.clear, size: 16),
+            label: const Text('مسح الفلاتر'),
+          ),
+      ],
+    );
+  }
+
   Widget _buildContent(DetailedReportResult result) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _buildFilterBar(),
+        const SizedBox(height: 12),
         _OverallCoverageCard(stat: result.overall),
         const SizedBox(height: 16),
         TabBar(
@@ -1187,8 +1343,8 @@ class _DetailedReportsTabState extends State<_DetailedReportsTab>
           child: TabBarView(
             controller: _tabController,
             children: [
-              _GroupStatTable(items: result.byBranch, emptyText: 'لا توجد فروع'),
-              _GroupStatTable(items: result.byWarehouse, emptyText: 'لا توجد مستودعات'),
+              _GroupStatTable(items: result.byBranch, emptyText: 'لا توجد فروع ضمن هذا الفلتر'),
+              _GroupStatTable(items: result.byWarehouse, emptyText: 'لا توجد مستودعات ضمن هذا الفلتر'),
               _EmployeeStatTable(items: result.byEmployee),
               _ProductDiscrepancyTab(items: result.byProduct),
             ],
