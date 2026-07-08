@@ -57,6 +57,29 @@ class SupabaseService {
   // إذا مُرر [updatedSince]، نجلب فقط المنتجات المعدّلة بعد هذا الوقت
   // (مزامنة تدريجية / delta) بدل تحميل كل المنتجات في كل مرة.
   // إذا كانت null، هذه أول مزامنة → نجلب كل شيء.
+  // يرفع/يحدّث دفعة منتجات (upsert بالـ id) - تُستخدم بميزة استيراد
+  // المنتجات من ملف Excel. مقسّمة لدفعات (حد أقصى 500 بكل استعلام)
+  // تفادياً لحمولة (payload) ضخمة بنداء واحد لو الملف كبير جداً.
+  // يرجع رسالة خطأ لو فشل، أو null لو نجح بالكامل.
+  static Future<String?> upsertProducts(List<ProductModel> products) async {
+    if (products.isEmpty) return null;
+    const chunkSize = 500;
+    try {
+      for (var i = 0; i < products.length; i += chunkSize) {
+        final chunk = products.sublist(
+          i,
+          (i + chunkSize).clamp(0, products.length),
+        );
+        await _client
+            .from(productsTable)
+            .upsert(chunk.map((p) => p.toMap()).toList(), onConflict: 'id');
+      }
+      return null;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   static Future<List<ProductModel>> fetchProducts({
     DateTime? updatedSince,
   }) async {

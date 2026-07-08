@@ -1,11 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:fl_chart/fl_chart.dart';
+import 'package:file_picker/file_picker.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
 import '../services/sync_service.dart';
 import '../services/detailed_reports_service.dart';
+import '../services/product_import_service.dart';
+import '../services/supabase_service.dart';
+import '../services/auth_service.dart';
 import '../models/product_model.dart';
 import '../models/stocktake_model.dart';
+import '../services/export/web_download_stub.dart'
+    if (dart.library.html) '../services/export/web_download_service.dart';
 
 class AdminDashboardScreen extends StatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -26,6 +33,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       const _PermissionsTab(),
       _AlertsTab(key: UniqueKey()),
       _DetailedReportsTab(key: UniqueKey()),
+      _ProductImportTab(key: UniqueKey()),
     ];
 
     return Directionality(
@@ -48,6 +56,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 NavigationRailDestination(icon: Icon(Icons.security), label: Text('الصلاحيات')),
                 NavigationRailDestination(icon: Icon(Icons.warning_amber_rounded), label: Text('التنبيهات')),
                 NavigationRailDestination(icon: Icon(Icons.insights), label: Text('تقارير تفصيلية')),
+                NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('استيراد المنتجات')),
               ],
             ),
             const VerticalDivider(thickness: 1, width: 1),
@@ -885,7 +894,318 @@ class _PermItem {
   const _PermItem(this.key, this.label, {this.has = false});
 }
 
-// ==================== تنبيهات فروقات الجرد ====================
+// ==================== استيراد المنتجات (رفع ملف Excel) ====================
+class _ProductImportTab extends StatefulWidget {
+  const _ProductImportTab({super.key});
+  @override
+  State<_ProductImportTab> createState() => _ProductImportTabState();
+}
+
+class _ProductImportTabState extends State<_ProductImportTab> {
+  List<Map<String, dynamic>> _warehouses = [];
+  bool _loadingWarehouses = true;
+  String? _selectedWarehouseId;
+
+  Uint8List? _pickedBytes;
+  String? _pickedFileName;
+  ImportParseResult? _parseResult;
+  bool _parsing = false;
+
+  bool _uploading = false;
+  String? _resultMessage;
+  bool _resultSuccess = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadWarehouses();
+  }
+
+  Future<void> _loadWarehouses() async {
+    final list = await AdminService.getWarehouses();
+    if (mounted) setState(() { _warehouses = list; _loadingWarehouses = false; });
+  }
+
+  Future<void> _downloadTemplate() async {
+    final bytes = ProductImportService.generateTemplate();
+    if (kIsWeb) {
+      WebDownloadService.downloadFile(
+        bytes: bytes,
+        fileName: 'قالب_استيراد_المنتجات.xlsx',
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تحميل القالب متاح حالياً على الويب فقط')),
+      );
+    }
+  }
+
+  Future<void> _pickAndParseFile() async {
+    if (_selectedWarehouseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('اختر المستودع الهدف أولاً'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['xlsx'],
+      withData: true,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final file = result.files.first;
+    if (file.bytes == null) return;
+
+    setState(() {
+      _pickedBytes = file.bytes;
+      _pickedFileName = file.name;
+      _parsing = true;
+      _parseResult = null;
+      _resultMessage = null;
+    });
+
+    final orgId = await AuthService.getOrgId();
+    if (orgId == null) {
+      if (!mounted) return;
+      setState(() {
+        _parsing = false;
+        _resultMessage = 'تعذّر تحديد المنظمة الحالية';
+        _resultSuccess = false;
+      });
+      return;
+    }
+
+    final parsed = ProductImportService.parseAndValidate(
+      bytes: _pickedBytes!,
+      orgId: orgId,
+      warehouseId: _selectedWarehouseId!,
+    );
+
+    if (mounted) setState(() { _parseResult = parsed; _parsing = false; });
+  }
+
+  Future<void> _confirmUpload() async {
+    final result = _parseResult;
+    if (result == null || result.validProducts.isEmpty) return;
+
+    setState(() { _uploading = true; _resultMessage = null; });
+
+    final error = await SupabaseService.upsertProducts(result.validProducts);
+
+    if (error == null) {
+      // نحدّث الكاش المحلي فوراً بنفس المنتجات المرفوعة، عشان تظهر
+      // مباشرة بالتطبيق بدون انتظار مزامنة كاملة
+      await HiveService.saveProducts(result.validProducts);
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _uploading = false;
+      _resultSuccess = error == null;
+      _resultMessage = error == null
+          ? 'تم الرفع بنجاح ✅ (${result.newCount} جديد، ${result.updatedCount} تحديث)'
+          : 'فشل الرفع: $error';
+      if (error == null) {
+        // نصفّر الملف المختار بعد نجاح الرفع، استعداداً لملف تالي لو حبّ
+        _pickedBytes = null;
+        _pickedFileName = null;
+        _parseResult = null;
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('استيراد المنتجات',
+                style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 6),
+            const Text(
+              'ارفع ملف Excel (.xlsx) بمنتجاتك مباشرة من المتصفح - بدون أي حاجة للوصول لقاعدة البيانات.',
+              style: TextStyle(color: Colors.grey, fontSize: 13),
+            ),
+            const SizedBox(height: 20),
+
+            // خطوة 1: تحميل القالب
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('1) حمّل القالب الفارغ وعبّيه بمنتجاتك بنفس ترتيب الأعمدة'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _downloadTemplate,
+                      icon: const Icon(Icons.download),
+                      label: const Text('تحميل القالب'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // خطوة 2: اختيار المستودع
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    const Text('2) المستودع الهدف: '),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _loadingWarehouses
+                          ? const LinearProgressIndicator()
+                          : DropdownButtonFormField<String>(
+                              initialValue: _selectedWarehouseId,
+                              decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
+                              items: _warehouses
+                                  .map((w) => DropdownMenuItem<String>(
+                                        value: w['id'].toString(),
+                                        child: Text(w['name']?.toString() ?? '-'),
+                                      ))
+                                  .toList(),
+                              onChanged: (v) => setState(() => _selectedWarehouseId = v),
+                            ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // خطوة 3: رفع الملف
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Expanded(child: Text('3) اختر ملف الإكسل المعبّى بمنتجاتك')),
+                        ElevatedButton.icon(
+                          onPressed: _parsing ? null : _pickAndParseFile,
+                          icon: const Icon(Icons.upload_file),
+                          label: Text(_parsing ? 'جارِ التحليل...' : 'اختيار ملف'),
+                        ),
+                      ],
+                    ),
+                    if (_pickedFileName != null) ...[
+                      const SizedBox(height: 8),
+                      Text('الملف: $_pickedFileName', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+
+            if (_parseResult != null) ...[
+              const SizedBox(height: 20),
+              _buildParsePreview(_parseResult!),
+            ],
+
+            if (_resultMessage != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _resultSuccess ? Colors.green[50] : Colors.red[50],
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: _resultSuccess ? Colors.green : Colors.red),
+                ),
+                child: Text(_resultMessage!,
+                    style: TextStyle(color: _resultSuccess ? Colors.green[800] : Colors.red[800])),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildParsePreview(ImportParseResult result) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('معاينة قبل الرفع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+        const SizedBox(height: 8),
+        Wrap(spacing: 16, runSpacing: 8, children: [
+          _statChip('إجمالي الصفوف', '${result.totalDataRows}', Colors.blueGrey),
+          _statChip('صالح للرفع', '${result.validProducts.length}', Colors.blue),
+          _statChip('جديد', '${result.newCount}', Colors.green),
+          _statChip('تحديث', '${result.updatedCount}', Colors.orange),
+          _statChip('أخطاء', '${result.errors.length}', Colors.red),
+        ]),
+        const SizedBox(height: 16),
+        if (result.errors.isNotEmpty) ...[
+          ExpansionTile(
+            title: Text('${result.errors.length} صف فيه مشكلة (لن يُرفع)',
+                style: const TextStyle(color: Colors.red)),
+            children: result.errors
+                .map((e) => ListTile(
+                      dense: true,
+                      leading: Text('صف ${e.rowNumber}', style: const TextStyle(fontSize: 12)),
+                      title: Text(e.reason, style: const TextStyle(fontSize: 13)),
+                    ))
+                .toList(),
+          ),
+          const SizedBox(height: 16),
+        ],
+        if (result.validProducts.isNotEmpty) ...[
+          const Text('عيّنة من المنتجات الصالحة (أول 20):', style: TextStyle(fontWeight: FontWeight.bold)),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: DataTable(
+              columns: const [
+                DataColumn(label: Text('الباركود')),
+                DataColumn(label: Text('الاسم')),
+                DataColumn(label: Text('الكمية')),
+                DataColumn(label: Text('السعر')),
+              ],
+              rows: result.validProducts.take(20).map((p) {
+                return DataRow(cells: [
+                  DataCell(Text(p.barcode)),
+                  DataCell(Text(p.name)),
+                  DataCell(Text('${p.systemQuantity}')),
+                  DataCell(Text('${p.price}')),
+                ]);
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _uploading ? null : _confirmUpload,
+            icon: _uploading
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.cloud_upload),
+            label: Text(_uploading
+                ? 'جارِ الرفع...'
+                : 'تأكيد ورفع ${result.validProducts.length} منتج'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _statChip(String label, String value, Color color) {
+    return Chip(
+      label: Text('$label: $value'),
+      backgroundColor: color.withValues(alpha: 0.1),
+      labelStyle: TextStyle(color: color, fontWeight: FontWeight.bold),
+    );
+  }
+}
 class _AlertsTab extends StatefulWidget {
   const _AlertsTab({super.key});
   @override
