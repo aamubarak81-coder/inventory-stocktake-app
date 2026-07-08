@@ -123,31 +123,33 @@ class AdminService {
     String? warehouseId,
   }) async {
     try {
-      final orgId = await AuthService.getOrgId();
-      if (orgId == null) return 'لم يتم تحديد المنظمة';
-
-      final authResponse = await _client.auth.admin.createUser(
-        AdminUserAttributes(
-          email: email,
-          password: password,
-          emailConfirm: true,
-        ),
+      // ملاحظة مهمة: إنشاء حساب مصادقة (auth.admin.createUser) ما ينعمل
+      // مباشرة من التطبيق - بيحتاج مفتاح service_role السري، وهذا
+      // المفتاح ممنوع يوصل لتطبيق العميل إطلاقاً (خطر أمني كبير لو
+      // انكشف). لهيك نستدعي Edge Function آمنة (create-employee) بتشتغل
+      // على سيرفر Supabase وتحمل مفتاح service_role بأمان هناك بس،
+      // وبتتحقق هي بنفسها إنه الطالب admin/super_admin قبل ما تنفذ.
+      final response = await _client.functions.invoke(
+        'create-employee',
+        body: {
+          'email': email,
+          'password': password,
+          'name': name,
+          'role': role,
+          if (phone != null && phone.isNotEmpty) 'phone': phone,
+          if (warehouseId != null && warehouseId.isNotEmpty) 'warehouseId': warehouseId,
+        },
       );
 
-      final userId = authResponse.user?.id;
-      if (userId == null) return 'فشل إنشاء حساب المصادقة';
-
-      await _client.from('employees').insert({
-        'id': userId,
-        'org_id': orgId,
-        'name': name,
-        'email': email,
-        'role': role,
-        'is_super_admin': role == 'super_admin',
-        if (phone != null && phone.isNotEmpty) 'phone': phone,
-        if (warehouseId != null && warehouseId.isNotEmpty) 'warehouse_id': warehouseId,
-      });
-      return null;
+      final data = response.data;
+      if (data is Map && data['success'] == true) {
+        return null;
+      }
+      return data is Map ? (data['error']?.toString() ?? 'فشل غير معروف') : 'فشل غير معروف';
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final message = details is Map ? details['error']?.toString() : null;
+      return message ?? 'فشل الطلب (${e.status})';
     } catch (e) {
       return e.toString();
     }
