@@ -50,6 +50,47 @@ class AuthService {
     }
   }
 
+  // تسجيل منظمة جديدة بالكامل (منظمة + فرع + مستودع افتراضي + حساب
+  // المدير الأول) عبر Edge Function آمنة (signup-organization). بعد
+  // النجاح، لازم نستدعي login() عادي بنفس الإيميل/كلمة السر لتفعيل
+  // الجلسة (الحساب اتعمل سيرفرياً، مو من التطبيق مباشرة)
+  static Future<String?> signupOrganization({
+    required String orgName,
+    required String adminName,
+    required String adminEmail,
+    required String adminPassword,
+    String? adminPhone,
+    String? branchName,
+    String? warehouseName,
+  }) async {
+    try {
+      final response = await _supabase.functions.invoke(
+        'signup-organization',
+        body: {
+          'orgName': orgName,
+          'adminName': adminName,
+          'adminEmail': adminEmail,
+          'adminPassword': adminPassword,
+          if (adminPhone != null && adminPhone.isNotEmpty) 'adminPhone': adminPhone,
+          if (branchName != null && branchName.isNotEmpty) 'branchName': branchName,
+          if (warehouseName != null && warehouseName.isNotEmpty) 'warehouseName': warehouseName,
+        },
+      );
+
+      final data = response.data;
+      if (data is Map && data['success'] == true) {
+        return null;
+      }
+      return data is Map ? (data['error']?.toString() ?? 'فشل غير معروف') : 'فشل غير معروف';
+    } on FunctionException catch (e) {
+      final details = e.details;
+      final message = details is Map ? details['error']?.toString() : null;
+      return message ?? 'فشل الطلب (${e.status})';
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   // تسجيل الخروج
   static Future<void> logout() async {
     await _supabase.auth.signOut();
