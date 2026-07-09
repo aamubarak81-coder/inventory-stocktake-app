@@ -103,6 +103,7 @@ Deno.serve(async (req: Request) => {
 
     const { error: insertError } = await supabaseAdmin.from('employees').insert({
       id: authData.user.id,
+      auth_id: authData.user.id,
       org_id: callerEmployee.org_id,
       name,
       email,

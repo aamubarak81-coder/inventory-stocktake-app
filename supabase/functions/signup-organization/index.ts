@@ -73,6 +73,24 @@ Deno.serve(async (req: Request) => {
     }
     createdOrgId = org.id;
 
+    // 1.5) اشتراك افتراضي فعّال للمنظمة الجديدة - ضروري لأن نظام
+    // الاشتراكات الجديد (أُضيف لاحقاً على قاعدة البيانات مباشرة) قد
+    // يمنع إضافة أي موظف لمنظمة بدون اشتراك فعّال. نعطيها تجريبياً
+    // 30 يوم بدون خطة محددة (plan_id = null => بدون حد أقصى للموظفين)
+    const { error: subError } = await supabaseAdmin.from('subscriptions').insert({
+      org_id: createdOrgId,
+      is_active: true,
+      expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    if (subError) {
+      await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId);
+      return jsonResponse(
+        { error: subError.message ?? 'فشل إنشاء اشتراك تجريبي للمنظمة' },
+        400,
+      );
+    }
+
     // 2) الفرع الافتراضي
     const { data: branch, error: branchError } = await supabaseAdmin
       .from('branches')
@@ -84,6 +102,7 @@ Deno.serve(async (req: Request) => {
       .single();
 
     if (branchError || !branch) {
+      await supabaseAdmin.from('subscriptions').delete().eq('org_id', createdOrgId);
       await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId);
       return jsonResponse(
         { error: branchError?.message ?? 'فشل إنشاء الفرع الافتراضي' },
@@ -104,6 +123,7 @@ Deno.serve(async (req: Request) => {
 
     if (warehouseError || !warehouse) {
       await supabaseAdmin.from('branches').delete().eq('id', branch.id);
+      await supabaseAdmin.from('subscriptions').delete().eq('org_id', createdOrgId);
       await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId);
       return jsonResponse(
         { error: warehouseError?.message ?? 'فشل إنشاء المستودع الافتراضي' },
@@ -122,6 +142,7 @@ Deno.serve(async (req: Request) => {
     if (authError || !authData.user) {
       await supabaseAdmin.from('warehouses').delete().eq('id', warehouse.id);
       await supabaseAdmin.from('branches').delete().eq('id', branch.id);
+      await supabaseAdmin.from('subscriptions').delete().eq('org_id', createdOrgId);
       await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId);
       return jsonResponse(
         { error: authError?.message ?? 'فشل إنشاء حساب المصادقة (البريد مستخدم مسبقاً؟)' },
@@ -133,6 +154,7 @@ Deno.serve(async (req: Request) => {
     // 5) صف الموظف - مدير عام كامل الصلاحيات على منظمته
     const { error: employeeError } = await supabaseAdmin.from('employees').insert({
       id: createdUserId,
+      auth_id: createdUserId,
       org_id: createdOrgId,
       name: adminName,
       email: adminEmail,
@@ -147,6 +169,7 @@ Deno.serve(async (req: Request) => {
       await supabaseAdmin.auth.admin.deleteUser(createdUserId);
       await supabaseAdmin.from('warehouses').delete().eq('id', warehouse.id);
       await supabaseAdmin.from('branches').delete().eq('id', branch.id);
+      await supabaseAdmin.from('subscriptions').delete().eq('org_id', createdOrgId);
       await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId);
       return jsonResponse({ error: employeeError.message }, 400);
     }
@@ -158,6 +181,7 @@ Deno.serve(async (req: Request) => {
       await supabaseAdmin.auth.admin.deleteUser(createdUserId).catch(() => {});
     }
     if (createdOrgId) {
+      await supabaseAdmin.from('subscriptions').delete().eq('org_id', createdOrgId).catch(() => {});
       await supabaseAdmin.from('organizations').delete().eq('id', createdOrgId).catch(() => {});
     }
     return jsonResponse({ error: String(e) }, 500);
