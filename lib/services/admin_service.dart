@@ -119,6 +119,7 @@ class AdminService {
     required String password,
     required String name,
     required String role,
+    bool isSuperAdmin = false,
     String? phone,
     String? warehouseId,
   }) async {
@@ -136,6 +137,7 @@ class AdminService {
           'password': password,
           'name': name,
           'role': role,
+          'isSuperAdmin': isSuperAdmin,
           if (phone != null && phone.isNotEmpty) 'phone': phone,
           if (warehouseId != null && warehouseId.isNotEmpty) 'warehouseId': warehouseId,
         },
@@ -158,12 +160,13 @@ class AdminService {
   static Future<String?> updateEmployee({
     required String employeeId,
     required String role,
+    bool isSuperAdmin = false,
     String? warehouseId,
   }) async {
     try {
       await _client.from('employees').update({
         'role': role,
-        'is_super_admin': role == 'super_admin',
+        'is_super_admin': isSuperAdmin,
         'warehouse_id': (warehouseId != null && warehouseId.isNotEmpty) ? warehouseId : null,
       }).eq('id', employeeId);
       return null;

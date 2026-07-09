@@ -72,4 +72,8 @@ class AuthService {
       _storage.read(key: 'employee_name');
   static Future<String?> getEmployeeRole() =>
       _storage.read(key: 'employee_role');
+  static Future<bool> getIsSuperAdmin() async {
+    final value = await _storage.read(key: 'is_super_admin');
+    return value == 'true';
+  }
 }

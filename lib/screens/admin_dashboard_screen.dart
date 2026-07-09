@@ -499,7 +499,8 @@ class _EmployeesTabState extends State<_EmployeesTab> {
   final _passCtrl = TextEditingController();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  String _selectedRole = 'employee';
+  String _selectedRole = 'driver';
+  bool _isSuperAdmin = false;
   String? _selectedWarehouseId;
 
   @override
@@ -529,7 +530,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
   }
 
   String _roleLabel(String? r) {
-    const m = {'super_admin': 'مدير عام', 'admin': 'مدير', 'manager': 'مشرف', 'employee': 'موظف'};
+    const m = {'super_admin': 'مدير عام', 'admin': 'مدير', 'manager': 'مشرف', 'driver': 'موظف'};
     return m[r] ?? 'موظف';
   }
 
@@ -541,7 +542,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
 
   void _showAddDialog() {
     _emailCtrl.clear(); _passCtrl.clear(); _nameCtrl.clear(); _phoneCtrl.clear();
-    _selectedRole = 'employee'; _selectedWarehouseId = null;
+    _selectedRole = 'driver'; _isSuperAdmin = false; _selectedWarehouseId = null;
 
     showDialog(
       context: context,
@@ -566,14 +567,22 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                 initialValue: _selectedRole,
                 decoration: const InputDecoration(labelText: 'الدور / الصلاحية', border: OutlineInputBorder()),
                 items: const [
-                  DropdownMenuItem(value: 'employee', child: Text('موظف - جرد فقط')),
+                  DropdownMenuItem(value: 'driver', child: Text('موظف - جرد فقط')),
                   DropdownMenuItem(value: 'manager', child: Text('مشرف - جرد + نتائج + تقارير')),
                   DropdownMenuItem(value: 'admin', child: Text('مدير - كل الصلاحيات')),
-                  DropdownMenuItem(value: 'super_admin', child: Text('مدير عام - كل شيء')),
                 ],
                 onChanged: (v) => setS(() => _selectedRole = v!),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 6),
+              CheckboxListTile(
+                value: _isSuperAdmin,
+                onChanged: (v) => setS(() => _isSuperAdmin = v ?? false),
+                title: const Text('مدير عام (صلاحيات كاملة على كل شيء)'),
+                controlAffinity: ListTileControlAffinity.leading,
+                contentPadding: EdgeInsets.zero,
+                dense: true,
+              ),
+              const SizedBox(height: 4),
               DropdownButtonFormField<String>(
                 initialValue: _selectedWarehouseId,
                 decoration: const InputDecoration(labelText: 'المستودع المخصص (اختياري)', border: OutlineInputBorder()),
@@ -605,6 +614,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                   password: _passCtrl.text,
                   name: _nameCtrl.text.trim(),
                   role: _selectedRole,
+                  isSuperAdmin: _isSuperAdmin,
                   phone: _phoneCtrl.text.trim(),
                   warehouseId: _selectedWarehouseId,
                 );
@@ -626,7 +636,8 @@ class _EmployeesTabState extends State<_EmployeesTab> {
   }
 
   void _showEditDialog(Map<String, dynamic> emp) {
-    String role = emp['role'] ?? 'employee';
+    String role = emp['role'] ?? 'driver';
+    bool isSuperAdmin = emp['is_super_admin'] == true;
     String? warehouseId = emp['warehouse_id'] as String?;
 
     showDialog(
@@ -639,14 +650,22 @@ class _EmployeesTabState extends State<_EmployeesTab> {
               initialValue: role,
               decoration: const InputDecoration(labelText: 'الدور / الصلاحية', border: OutlineInputBorder()),
               items: const [
-                DropdownMenuItem(value: 'employee', child: Text('موظف - جرد فقط')),
+                DropdownMenuItem(value: 'driver', child: Text('موظف - جرد فقط')),
                 DropdownMenuItem(value: 'manager', child: Text('مشرف - جرد + نتائج + تقارير')),
                 DropdownMenuItem(value: 'admin', child: Text('مدير - كل الصلاحيات')),
-                DropdownMenuItem(value: 'super_admin', child: Text('مدير عام - كل شيء')),
               ],
               onChanged: (v) => setS(() => role = v!),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 6),
+            CheckboxListTile(
+              value: isSuperAdmin,
+              onChanged: (v) => setS(() => isSuperAdmin = v ?? false),
+              title: const Text('مدير عام (صلاحيات كاملة على كل شيء)'),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+            ),
+            const SizedBox(height: 6),
             DropdownButtonFormField<String>(
               initialValue: warehouseId,
               decoration: const InputDecoration(labelText: 'المستودع المخصص', border: OutlineInputBorder()),
@@ -668,6 +687,7 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                 await AdminService.updateEmployee(
                   employeeId: emp['id'],
                   role: role,
+                  isSuperAdmin: isSuperAdmin,
                   warehouseId: warehouseId,
                 );
                 _load();
@@ -722,7 +742,9 @@ class _EmployeesTabState extends State<_EmployeesTab> {
                       itemCount: _employees.length,
                       itemBuilder: (_, i) {
                         final emp = _employees[i];
-                        final role = emp['role'] as String?;
+                        final role = emp['is_super_admin'] == true
+                            ? 'super_admin'
+                            : emp['role'] as String?;
                         final wName = _warehouseName(emp['warehouse_id'] as String?);
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),
@@ -808,7 +830,7 @@ class _PermissionsTabState extends State<_PermissionsTab> {
       _PermItem('admin', '⚙️ الإدارة'),
     ];
     final granted = {
-      'employee': {'home', 'stocktake'},
+      'driver': {'home', 'stocktake'},
       'manager': {'home', 'products', 'stocktake', 'results', 'reports'},
       'admin': {'home', 'products', 'stocktake', 'results', 'reports', 'admin'},
       'super_admin': {'home', 'products', 'stocktake', 'results', 'reports', 'admin'},
@@ -818,7 +840,7 @@ class _PermissionsTabState extends State<_PermissionsTab> {
   }
 
   String _roleLabel(String? r) {
-    const m = {'super_admin': 'مدير عام', 'admin': 'مدير', 'manager': 'مشرف', 'employee': 'موظف'};
+    const m = {'super_admin': 'مدير عام', 'admin': 'مدير', 'manager': 'مشرف', 'driver': 'موظف'};
     return m[r] ?? 'موظف';
   }
 
@@ -842,7 +864,9 @@ class _PermissionsTabState extends State<_PermissionsTab> {
                       itemCount: _employees.length,
                       itemBuilder: (_, i) {
                         final emp = _employees[i];
-                        final role = emp['role'] as String? ?? 'employee';
+                        final role = emp['is_super_admin'] == true
+                            ? 'super_admin'
+                            : (emp['role'] as String? ?? 'driver');
                         final perms = _permsForRole(role);
                         return Card(
                           margin: const EdgeInsets.only(bottom: 10),

@@ -71,7 +71,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { email, password, name, role, phone, warehouseId } = body;
+    const { email, password, name, role, isSuperAdmin, phone, warehouseId } = body;
 
     if (!email || !password || !name || !role) {
       return new Response(
@@ -107,7 +107,7 @@ Deno.serve(async (req: Request) => {
       name,
       email,
       role,
-      is_super_admin: role === 'super_admin',
+      is_super_admin: isSuperAdmin === true,
       ...(phone ? { phone } : {}),
       ...(warehouseId ? { warehouse_id: warehouseId } : {}),
     });

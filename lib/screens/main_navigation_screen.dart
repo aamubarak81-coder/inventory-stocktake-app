@@ -26,9 +26,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   Future<void> _checkAdminRole() async {
     final role = await AuthService.getEmployeeRole();
-    final isSuperAdmin = await AuthService.getEmployeeRole();
+    final isSuperAdmin = await AuthService.getIsSuperAdmin();
     setState(() {
-      _isAdmin = role == 'admin' || role == 'manager' || isSuperAdmin == 'super_admin';
+      _isAdmin = role == 'admin' || role == 'manager' || isSuperAdmin;
     });
   }
 
