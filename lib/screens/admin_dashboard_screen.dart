@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:fl_chart/fl_chart.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
 import '../services/admin_service.dart';
 import '../services/hive_service.dart';
 import '../services/sync_service.dart';
@@ -12,6 +13,7 @@ import '../services/supabase_service.dart';
 import '../services/auth_service.dart';
 import '../models/product_model.dart';
 import '../models/stocktake_model.dart';
+import '../providers/product_provider.dart';
 import '../services/export/web_download_stub.dart'
     if (dart.library.html) '../services/export/web_download_service.dart';
 
@@ -1023,6 +1025,9 @@ class _ProductImportTabState extends State<_ProductImportTab> {
       // نحدّث الكاش المحلي فوراً بنفس المنتجات المرفوعة، عشان تظهر
       // مباشرة بالتطبيق بدون انتظار مزامنة كاملة
       await HiveService.saveProducts(result.validProducts);
+      // نبلّغ ProductProvider (المستخدم بشاشة "المنتجات") إنه في تحديث،
+      // وإلا يضل عارض بياناته القديمة المحمّلة وقت فتح التطبيق فقط
+      if (mounted) context.read<ProductProvider>().loadProducts();
     }
 
     if (!mounted) return;

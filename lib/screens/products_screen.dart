@@ -13,6 +13,18 @@ class _ProductsScreenState extends State<ProductsScreen> {
   final _searchController = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // نحدّث القائمة من Hive في كل مرة تُفتح فيها الشاشة - قبل هذا
+    // كانت الشاشة تعرض بس البيانات المحمّلة أول مرة فُتح فيها التطبيق
+    // (قبل أي تسجيل دخول أو مزامنة حتى)، فتضل تعرض بيانات قديمة/فاضية
+    // مهما صارت مزامنة أو استيراد لاحقاً
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) context.read<ProductProvider>().loadProducts();
+    });
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
