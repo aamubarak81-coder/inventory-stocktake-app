@@ -17,6 +17,19 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   bool _isSyncing = false;
+  bool _isAdmin = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkAdminRole();
+  }
+
+  Future<void> _checkAdminRole() async {
+    final role = await AuthService.getEmployeeRole();
+    final isSuperAdmin = await AuthService.getIsSuperAdmin();
+    if (mounted) setState(() => _isAdmin = role == 'admin' || isSuperAdmin);
+  }
 
   Future<void> _handleManualSync() async {
     if (_isSyncing) return; // تفادي ضغط الزر أكثر من مرة أثناء المزامنة
@@ -138,12 +151,15 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: Colors.orange,
                     onTap: () => _openScreen(const ResultsScreen()),
                   ),
-                  _QuickAccessCard(
-                    icon: Icons.admin_panel_settings,
-                    label: 'لوحة تحكم الإدارة',
-                    color: Colors.purple,
-                    onTap: () => _openScreen(const AdminDashboardScreen()),
-                  ),
+                  // لوحة تحكم الإدارة تظهر فقط لـ admin أو مدير عام - تطابق
+                  // نفس شرط تبويب 'الإدارة' بالشريط السفلي (main_navigation_screen)
+                  if (_isAdmin)
+                    _QuickAccessCard(
+                      icon: Icons.admin_panel_settings,
+                      label: 'لوحة تحكم الإدارة',
+                      color: Colors.purple,
+                      onTap: () => _openScreen(const AdminDashboardScreen()),
+                    ),
                 ]),
               ),
             ),
