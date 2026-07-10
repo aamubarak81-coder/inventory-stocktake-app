@@ -19,9 +19,14 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 subprojects {
     if (project.name == "file_picker") {
         project.plugins.apply("org.jetbrains.kotlin.android")
+        project.tasks.withType<KotlinCompile>().configureEach {
+            compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
     }
 }
 
