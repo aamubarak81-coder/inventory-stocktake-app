@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
 allprojects {
     repositories {
         google()
@@ -18,8 +20,6 @@ subprojects {
 subprojects {
     project.evaluationDependsOn(":app")
 }
-
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 subprojects {
     if (project.name == "file_picker") {
