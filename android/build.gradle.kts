@@ -1,4 +1,5 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import com.android.build.gradle.LibraryExtension
 
 allprojects {
     repositories {
@@ -26,6 +27,13 @@ subprojects {
         project.plugins.apply("org.jetbrains.kotlin.android")
         project.tasks.withType<KotlinCompile>().configureEach {
             compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+        }
+    }
+    if (project.name == "mobile_scanner") {
+        project.plugins.withId("com.android.library") {
+            project.extensions.configure<LibraryExtension> {
+                compileSdk = 36
+            }
         }
     }
 }
