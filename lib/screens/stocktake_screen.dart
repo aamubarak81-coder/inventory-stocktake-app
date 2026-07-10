@@ -61,9 +61,7 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
     setState(() {
       _isScanning = false;
       _scannedBarcode = barcode;
-      _isCameraMode = false;
     });
-    _scannerController.stop();
     _lookupProduct(barcode);
   }
 
@@ -130,7 +128,6 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
     });
     _qtyController.clear();
     _manualBarcodeController.clear();
-    _scannerController.start();
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -212,7 +209,7 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
               const SizedBox(height: 12),
 
               // منطقة الكاميرا أو الإدخال اليدوي
-              if (_isCameraMode && _scannedBarcode == null) ...[
+              if (_isCameraMode) ...[
                 Container(
                   height: 200,
                   decoration: BoxDecoration(
