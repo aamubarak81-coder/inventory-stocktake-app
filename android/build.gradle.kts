@@ -20,10 +20,8 @@ subprojects {
 }
 
 subprojects {
-    afterEvaluate {
-        if (project.name == "file_picker" && !project.plugins.hasPlugin("org.jetbrains.kotlin.android")) {
-            project.pluginManager.apply("org.jetbrains.kotlin.android")
-        }
+    if (project.name == "file_picker") {
+        project.plugins.apply("org.jetbrains.kotlin.android")
     }
 }
 
