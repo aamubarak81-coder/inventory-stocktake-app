@@ -15,14 +15,6 @@ val newBuildDir: Directory =
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
-    project.layout.buildDirectory.value(newSubprojectBuildDir)
-}
-subprojects {
-    project.evaluationDependsOn(":app")
-}
-
-subprojects {
     if (project.name == "file_picker") {
         project.plugins.apply("org.jetbrains.kotlin.android")
         project.tasks.withType<KotlinCompile>().configureEach {
@@ -30,12 +22,20 @@ subprojects {
         }
     }
     if (project.name == "mobile_scanner") {
-        project.plugins.withId("com.android.library") {
+        project.afterEvaluate {
             project.extensions.configure<LibraryExtension> {
                 compileSdk = 36
             }
         }
     }
+}
+
+subprojects {
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
+}
+subprojects {
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {
