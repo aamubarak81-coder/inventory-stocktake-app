@@ -5,9 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/product_model.dart';
 import 'models/stocktake_model.dart';
 import 'services/hive_service.dart';
+import 'services/auth_service.dart';
+import 'services/sync_service.dart';
 import 'providers/product_provider.dart';
 import 'providers/stocktake_provider.dart';
 import 'screens/login_screen.dart';
+import 'screens/main_navigation_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,8 +55,52 @@ class MyApp extends StatelessWidget {
           colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
           useMaterial3: true,
         ),
-        home: const LoginScreen(),
+        home: const AuthGate(),
       ),
     );
+  }
+}
+
+/// يتحقق عند فتح التطبيق إذا في جلسة دخول محفوظة سابقاً (Supabase يحفظها
+/// تلقائياً محلياً)، فإذا وجدت يدخل المستخدم مباشرة للرئيسية بدل ما يرجعه
+/// لشاشة تسجيل الدخول (ميزة "تذكرني" / البقاء مسجل دخول).
+class AuthGate extends StatefulWidget {
+  const AuthGate({super.key});
+
+  @override
+  State<AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<AuthGate> {
+  bool _checking = true;
+  bool _loggedIn = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _check();
+  }
+
+  Future<void> _check() async {
+    final loggedIn = await AuthService.isLoggedIn();
+    if (loggedIn) {
+      // مزامنة خفيفة بالخلفية عند فتح التطبيق (لا نوقف المستخدم بانتظارها)
+      SyncService.syncAll();
+    }
+    if (!mounted) return;
+    setState(() {
+      _loggedIn = loggedIn;
+      _checking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_checking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+    return _loggedIn ? const MainNavigationScreen() : const LoginScreen();
   }
 }

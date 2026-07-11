@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:provider/provider.dart';
 import '../providers/stocktake_provider.dart';
@@ -238,7 +239,8 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
                     border: OutlineInputBorder(),
                     prefixIcon: Icon(Icons.qr_code),
                   ),
-                  keyboardType: TextInputType.text,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   onSubmitted: (value) {
                     if (value.isNotEmpty) {
                       setState(() => _scannedBarcode = value);
@@ -309,7 +311,8 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.calculate),
                 ),
-                keyboardType: TextInputType.number,
+                keyboardType: TextInputType.phone,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 autofocus: _scannedBarcode != null,
               ),
 

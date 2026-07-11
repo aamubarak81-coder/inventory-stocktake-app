@@ -39,33 +39,80 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       _ProductImportTab(key: UniqueKey()),
     ];
 
+    const destinations = [
+      (icon: Icons.dashboard, label: 'الرئيسية'),
+      (icon: Icons.business, label: 'الفروع'),
+      (icon: Icons.people, label: 'الموظفين'),
+      (icon: Icons.security, label: 'الصلاحيات'),
+      (icon: Icons.warning_amber_rounded, label: 'التنبيهات'),
+      (icon: Icons.insights, label: 'تقارير تفصيلية'),
+      (icon: Icons.upload_file, label: 'استيراد المنتجات'),
+    ];
+
     return Directionality(
       textDirection: TextDirection.rtl,
-      child: Scaffold(
-        body: Row(
-          children: [
-            NavigationRail(
-              selectedIndex: _selectedIndex,
-              onDestinationSelected: (i) => setState(() => _selectedIndex = i),
-              labelType: NavigationRailLabelType.all,
-              backgroundColor: Colors.blue[50],
-              selectedIconTheme: const IconThemeData(color: Colors.blue),
-              selectedLabelTextStyle:
-                  const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
-              destinations: const [
-                NavigationRailDestination(icon: Icon(Icons.dashboard), label: Text('الرئيسية')),
-                NavigationRailDestination(icon: Icon(Icons.business), label: Text('الفروع')),
-                NavigationRailDestination(icon: Icon(Icons.people), label: Text('الموظفين')),
-                NavigationRailDestination(icon: Icon(Icons.security), label: Text('الصلاحيات')),
-                NavigationRailDestination(icon: Icon(Icons.warning_amber_rounded), label: Text('التنبيهات')),
-                NavigationRailDestination(icon: Icon(Icons.insights), label: Text('تقارير تفصيلية')),
-                NavigationRailDestination(icon: Icon(Icons.upload_file), label: Text('استيراد المنتجات')),
-              ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isWide = constraints.maxWidth >= 700;
+
+          if (isWide) {
+            return Scaffold(
+              body: Row(
+                children: [
+                  NavigationRail(
+                    selectedIndex: _selectedIndex,
+                    onDestinationSelected: (i) => setState(() => _selectedIndex = i),
+                    labelType: NavigationRailLabelType.all,
+                    backgroundColor: Colors.blue[50],
+                    selectedIconTheme: const IconThemeData(color: Colors.blue),
+                    selectedLabelTextStyle:
+                        const TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    destinations: [
+                      for (final d in destinations)
+                        NavigationRailDestination(icon: Icon(d.icon), label: Text(d.label)),
+                    ],
+                  ),
+                  const VerticalDivider(thickness: 1, width: 1),
+                  Expanded(child: screens[_selectedIndex]),
+                ],
+              ),
+            );
+          }
+
+          // شاشة جوال ضيقة: قائمة جانبية (Drawer) بدل الشريط الثابت
+          return Scaffold(
+            appBar: AppBar(title: Text(destinations[_selectedIndex].label)),
+            drawer: Drawer(
+              child: SafeArea(
+                child: ListView(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.all(16),
+                      child: Text('لوحة تحكم المدير',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    ),
+                    for (int i = 0; i < destinations.length; i++)
+                      ListTile(
+                        leading: Icon(destinations[i].icon,
+                            color: _selectedIndex == i ? Colors.blue : null),
+                        title: Text(destinations[i].label,
+                            style: TextStyle(
+                                color: _selectedIndex == i ? Colors.blue : null,
+                                fontWeight:
+                                    _selectedIndex == i ? FontWeight.bold : FontWeight.normal)),
+                        selected: _selectedIndex == i,
+                        onTap: () {
+                          setState(() => _selectedIndex = i);
+                          Navigator.pop(context);
+                        },
+                      ),
+                  ],
+                ),
+              ),
             ),
-            const VerticalDivider(thickness: 1, width: 1),
-            Expanded(child: screens[_selectedIndex]),
-          ],
-        ),
+            body: screens[_selectedIndex],
+          );
+        },
       ),
     );
   }
@@ -128,23 +175,33 @@ class _DashboardTabState extends State<_DashboardTab> {
   Widget build(BuildContext context) {
     final products = HiveService.getProducts();
     final stocktakes = HiveService.getStocktakes();
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isNarrow = screenWidth < 500;
+    final resyncButton = OutlinedButton.icon(
+      onPressed: _resyncing ? null : _forceFullResync,
+      icon: _resyncing
+          ? const SizedBox(
+              width: 16, height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2))
+          : const Icon(Icons.cloud_sync, size: 18),
+      label: Text(_resyncing ? 'جارِ المزامنة...' : 'إعادة مزامنة كاملة للمنتجات',
+          overflow: TextOverflow.ellipsis),
+    );
     return Padding(
-      padding: const EdgeInsets.all(24),
+      padding: EdgeInsets.all(isNarrow ? 12 : 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(
+        if (isNarrow) ...[
+          const Text('لوحة تحكم المدير',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
+          const SizedBox(height: 10),
+          SizedBox(width: double.infinity, child: resyncButton),
+        ] else
+          Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Text('لوحة تحكم المدير',
                 style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold)),
-            OutlinedButton.icon(
-              onPressed: _resyncing ? null : _forceFullResync,
-              icon: _resyncing
-                  ? const SizedBox(
-                      width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2))
-                  : const Icon(Icons.cloud_sync, size: 18),
-              label: Text(_resyncing ? 'جارِ المزامنة...' : 'إعادة مزامنة كاملة للمنتجات'),
-            ),
+            resyncButton,
           ],
         ),
         const SizedBox(height: 20),
