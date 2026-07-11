@@ -84,6 +84,18 @@ class _AuthGateState extends State<AuthGate> {
   Future<void> _check() async {
     final loggedIn = await AuthService.isLoggedIn();
     if (loggedIn) {
+      // لو المستخدم بلّش "تذكرني" (اختار عدم تذكره)، ما منسمحش بالدخول
+      // التلقائي بجلسة Supabase المحفوظة - منطلب تسجيل دخول صريح كل مرة
+      final rememberMe = await AuthService.getRememberMe();
+      if (!rememberMe) {
+        await AuthService.logout();
+        if (!mounted) return;
+        setState(() {
+          _loggedIn = false;
+          _checking = false;
+        });
+        return;
+      }
       // مزامنة خفيفة بالخلفية عند فتح التطبيق (لا نوقف المستخدم بانتظارها)
       SyncService.syncAll();
     }

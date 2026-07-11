@@ -15,8 +15,20 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _rememberMe = true;
   String? _errorMessage;
   String _loadingMessage = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRememberMePreference();
+  }
+
+  Future<void> _loadRememberMePreference() async {
+    final remembered = await AuthService.getRememberMe();
+    if (mounted) setState(() => _rememberMe = remembered);
+  }
 
   Future<void> _handleLogin() async {
     setState(() {
@@ -39,6 +51,11 @@ class _LoginScreenState extends State<LoginScreen> {
       });
       return;
     }
+
+    // حفظ تفضيل "تذكرني": ما بنخزن كلمة السر أبداً، بس علم (flag) يقول
+    // لو لازم نبقي جلسة Supabase (اللي هي أصلاً محفوظة محلياً بأمان)
+    // فعالة تلقائياً بالمرة الجاية، أو نطلب تسجيل دخول صريح كل مرة
+    await AuthService.setRememberMe(_rememberMe);
 
     // بعد نجاح تسجيل الدخول، نزامن البيانات فوراً (تنزيل المنتجات)
     setState(() => _loadingMessage = 'جاري تحميل بيانات المنتجات...');
@@ -105,6 +122,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 8),
+              Row(
+                children: [
+                  Checkbox(
+                    value: _rememberMe,
+                    onChanged: _isLoading
+                        ? null
+                        : (value) => setState(() => _rememberMe = value ?? true),
+                  ),
+                  const Text('تذكرني'),
+                ],
+              ),
               if (_errorMessage != null)
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 8),

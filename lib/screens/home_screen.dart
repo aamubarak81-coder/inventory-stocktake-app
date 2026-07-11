@@ -126,8 +126,10 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverPadding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  // عمودين على الجوال، ويتوسع لـ 4 أعمدة على الويب/الشاشات
+                  // الكبيرة (Tablet/Desktop) بدل ما يبقى ثابت على 2 دايماً
+                  crossAxisCount: MediaQuery.of(context).size.width >= 700 ? 4 : 2,
                   mainAxisSpacing: 16,
                   crossAxisSpacing: 16,
                   childAspectRatio: 1.15,
@@ -346,6 +348,7 @@ class _QuickAccessCard extends StatelessWidget {
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
@@ -353,7 +356,15 @@ class _QuickAccessCard extends StatelessWidget {
                 child: Icon(icon, size: 32, color: color),
               ),
               const SizedBox(height: 12),
-              Text(label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+              Flexible(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         ),

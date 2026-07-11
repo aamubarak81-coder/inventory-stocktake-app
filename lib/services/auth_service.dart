@@ -104,6 +104,19 @@ class AuthService {
     return session != null && orgId != null;
   }
 
+  // ميزة "تذكرني": ما بنخزن كلمة السر أبداً، بس علم بسيط يتحكم إذا كانت
+  // جلسة الدخول (Session Token المحفوظة أصلاً من Supabase) تُستخدم تلقائياً
+  // بالمرة الجاية أو لأ. الافتراضي true للمستخدمين الحاليين (سلوك قبل
+  // إضافة الخانة، كانوا يبقوا مسجلين دايماً).
+  static Future<void> setRememberMe(bool value) async {
+    await _storage.write(key: 'remember_me', value: value.toString());
+  }
+
+  static Future<bool> getRememberMe() async {
+    final value = await _storage.read(key: 'remember_me');
+    return value != 'false';
+  }
+
   // دوال مساعدة لجلب بيانات المستخدم الحالي من أي مكان بالتطبيق
   static Future<String?> getOrgId() => _storage.read(key: 'org_id');
   static Future<String?> getEmployeeId() => _storage.read(key: 'employee_id');

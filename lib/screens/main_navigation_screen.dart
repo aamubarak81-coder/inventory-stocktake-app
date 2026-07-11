@@ -58,13 +58,20 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         index: _currentIndex.clamp(0, _screens.length - 1),
         children: _screens,
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex.clamp(0, _screens.length - 1),
-        onTap: (index) => setState(() => _currentIndex = index),
-        type: BottomNavigationBarType.fixed,
-        selectedItemColor: Colors.blue,
-        unselectedItemColor: Colors.grey,
-        items: _navItems,
+      bottomNavigationBar: SafeArea(
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex.clamp(0, _screens.length - 1),
+          onTap: (index) => setState(() => _currentIndex = index),
+          type: BottomNavigationBarType.fixed,
+          selectedItemColor: Colors.blue,
+          unselectedItemColor: Colors.grey,
+          // أحجام مصغّرة لتفادي BOTTOM OVERFLOWED لما تزيد العناصر
+          // لـ 6 (حالة الأدمن) أو يكبر Text Scale Factor على جهاز المستخدم
+          selectedFontSize: 11,
+          unselectedFontSize: 10,
+          iconSize: 22,
+          items: _navItems,
+        ),
       ),
     );
   }

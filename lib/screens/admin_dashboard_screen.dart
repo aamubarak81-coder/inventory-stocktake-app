@@ -177,6 +177,10 @@ class _DashboardTabState extends State<_DashboardTab> {
     final stocktakes = HiveService.getStocktakes();
     final screenWidth = MediaQuery.of(context).size.width;
     final isNarrow = screenWidth < 500;
+    // نفس منطق التجاوب: عمودين على الجوال، 4 أعمدة على الويب/الشاشات
+    // الكبيرة، بدل عرض ثابت (150) كان بيعمل Wrap لأسطر كثيرة ويسبب
+    // BOTTOM OVERFLOWED لما تزيد الكروت أو يكبر حجم الخط بالجهاز
+    final kpiCrossAxisCount = screenWidth >= 900 ? 4 : (screenWidth >= 600 ? 3 : 2);
     final resyncButton = OutlinedButton.icon(
       onPressed: _resyncing ? null : _forceFullResync,
       icon: _resyncing
@@ -187,7 +191,18 @@ class _DashboardTabState extends State<_DashboardTab> {
       label: Text(_resyncing ? 'جارِ المزامنة...' : 'إعادة مزامنة كاملة للمنتجات',
           overflow: TextOverflow.ellipsis),
     );
-    return Padding(
+
+    final kpiCards = [
+      _KpiCard('المنتجات', products.length.toString(), Icons.inventory_2, Colors.blue),
+      _KpiCard('الفروع', _bCount.toString(), Icons.business, Colors.indigo),
+      _KpiCard('المستودعات', _wCount.toString(), Icons.warehouse, Colors.green),
+      _KpiCard('الموظفين', _eCount.toString(), Icons.people, Colors.orange),
+      _KpiCard('عمليات الجرد', stocktakes.length.toString(), Icons.qr_code_scanner, Colors.purple),
+    ];
+
+    // الشاشة كلها قابلة للتمرير الآن (بدل Column ثابت + Expanded كان
+    // بيفيض لتحت لما محتوى الكروت والزر ما بيضل مساحة كافية له)
+    return SingleChildScrollView(
       padding: EdgeInsets.all(isNarrow ? 12 : 24),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (isNarrow) ...[
@@ -205,40 +220,49 @@ class _DashboardTabState extends State<_DashboardTab> {
           ],
         ),
         const SizedBox(height: 20),
-        if (_loading) const CircularProgressIndicator()
-        else Wrap(spacing: 16, runSpacing: 16, children: [
-          _KpiCard('المنتجات', products.length.toString(), Icons.inventory_2, Colors.blue),
-          _KpiCard('الفروع', _bCount.toString(), Icons.business, Colors.indigo),
-          _KpiCard('المستودعات', _wCount.toString(), Icons.warehouse, Colors.green),
-          _KpiCard('الموظفين', _eCount.toString(), Icons.people, Colors.orange),
-          _KpiCard('عمليات الجرد', stocktakes.length.toString(), Icons.qr_code_scanner, Colors.purple),
-        ]),
+        if (_loading)
+          const Center(child: CircularProgressIndicator())
+        else
+          GridView.count(
+            crossAxisCount: kpiCrossAxisCount,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+            childAspectRatio: 1.3,
+            children: kpiCards,
+          ),
         const SizedBox(height: 24),
         const Text('آخر عمليات الجرد',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 8),
-        Expanded(
-          child: stocktakes.isEmpty
-              ? const Center(child: Text('لا توجد عمليات جرد بعد', style: TextStyle(color: Colors.grey)))
-              : ListView.builder(
-                  itemCount: stocktakes.length > 15 ? 15 : stocktakes.length,
-                  itemBuilder: (_, i) {
-                    final s = stocktakes.reversed.toList()[i];
-                    final diff = s.expectedQuantity != null
-                        ? s.scannedQuantity - s.expectedQuantity! : 0;
-                    return ListTile(
-                      dense: true,
-                      leading: Icon(
-                        diff == 0 ? Icons.check_circle : diff > 0 ? Icons.add_circle : Icons.remove_circle,
-                        color: diff == 0 ? Colors.green : diff > 0 ? Colors.teal : Colors.red,
-                      ),
-                      title: Text(s.barcode.isNotEmpty ? s.barcode : s.productId,
-                          style: const TextStyle(fontSize: 13)),
-                      subtitle: Text('الكمية: ${s.scannedQuantity} | ${s.isSynced ? "✅ متزامن" : "🕐 غير متزامن"}'),
-                    );
-                  },
-                ),
-        ),
+        stocktakes.isEmpty
+            ? const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(child: Text('لا توجد عمليات جرد بعد', style: TextStyle(color: Colors.grey))),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: stocktakes.length > 15 ? 15 : stocktakes.length,
+                itemBuilder: (_, i) {
+                  final s = stocktakes.reversed.toList()[i];
+                  final diff = s.expectedQuantity != null
+                      ? s.scannedQuantity - s.expectedQuantity! : 0;
+                  return ListTile(
+                    dense: true,
+                    leading: Icon(
+                      diff == 0 ? Icons.check_circle : diff > 0 ? Icons.add_circle : Icons.remove_circle,
+                      color: diff == 0 ? Colors.green : diff > 0 ? Colors.teal : Colors.red,
+                    ),
+                    title: Text(s.barcode.isNotEmpty ? s.barcode : s.productId,
+                        style: const TextStyle(fontSize: 13),
+                        overflow: TextOverflow.ellipsis),
+                    subtitle: Text('الكمية: ${s.scannedQuantity} | ${s.isSynced ? "✅ متزامن" : "🕐 غير متزامن"}',
+                        overflow: TextOverflow.ellipsis),
+                  );
+                },
+              ),
       ]),
     );
   }
@@ -253,19 +277,26 @@ class _KpiCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 150,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 32, color: color),
-        const SizedBox(height: 8),
-        Text(count, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
-        Text(title, style: const TextStyle(fontSize: 12, color: Colors.black54)),
-      ]),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 32, color: color),
+          const SizedBox(height: 8),
+          Text(count, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color)),
+          Text(title,
+              style: const TextStyle(fontSize: 12, color: Colors.black54),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis),
+        ],
+      ),
     );
   }
 }

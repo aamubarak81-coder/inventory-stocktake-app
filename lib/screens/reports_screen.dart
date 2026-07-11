@@ -278,7 +278,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             fontSize: 18, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 12),
                     GridView.count(
-                      crossAxisCount: 2,
+                      crossAxisCount: MediaQuery.of(context).size.width >= 700 ? 4 : 2,
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       crossAxisSpacing: 10,
@@ -368,26 +368,37 @@ class _ReportsScreenState extends State<ReportsScreen> {
                             productName ?? (e.barcode.isNotEmpty ? e.barcode : e.productId),
                             style: const TextStyle(
                                 fontSize: 13, fontWeight: FontWeight.bold),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           subtitle: Text(
                             productName != null && e.barcode.isNotEmpty
                                 ? '${e.barcode} • ${DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt)}'
                                 : DateFormat('yyyy-MM-dd HH:mm').format(e.scannedAt),
                             style: const TextStyle(fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           trailing: Column(
+                            mainAxisSize: MainAxisSize.min,
                             mainAxisAlignment: MainAxisAlignment.center,
                             crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              Text('الفعلي: ${e.scannedQuantity}',
-                                  style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      color: color,
-                                      fontSize: 12)),
+                              Flexible(
+                                child: Text('الفعلي: ${e.scannedQuantity}',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: color,
+                                        fontSize: 12),
+                                    overflow: TextOverflow.ellipsis),
+                              ),
                               if (e.expectedQuantity != null)
-                                Text('الدفتري: ${e.expectedQuantity}',
-                                    style: const TextStyle(
-                                        fontSize: 11, color: Colors.grey)),
+                                Flexible(
+                                  child: Text('الدفتري: ${e.expectedQuantity}',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: Colors.grey),
+                                      overflow: TextOverflow.ellipsis),
+                                ),
                             ],
                           ),
                         ),
