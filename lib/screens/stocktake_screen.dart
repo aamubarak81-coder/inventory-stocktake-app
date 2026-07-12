@@ -222,6 +222,12 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
                     child: MobileScanner(
                       controller: _scannerController,
                       onDetect: _onBarcodeDetected,
+                      // بدل ما تضل الشاشة سودة بصمت لو صار أي خطأ (رفض
+                      // صلاحية، تعارض توافق...)، نعرض السبب الحقيقي بوضوح
+                      // + زر لإعادة المحاولة بعد إعطاء الصلاحية يدوياً
+                      errorBuilder: (context, error, child) {
+                        return _buildScannerError(error);
+                      },
                     ),
                   ),
                 ),
@@ -378,6 +384,45 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  // يعرض السبب الحقيقي لفشل تشغيل الكاميرا (بدل شاشة سودة صامتة)، مع
+  // رسالة مختلفة حسب نوع الخطأ وزر لإعادة المحاولة
+  Widget _buildScannerError(MobileScannerException error) {
+    String message;
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        message = 'صلاحية الكاميرا مرفوضة.\n'
+            'روح لإعدادات الجوال ← التطبيقات ← نظام الجرد الذكي ← الصلاحيات ← فعّل الكاميرا';
+        break;
+      case MobileScannerErrorCode.unsupported:
+        message = 'الجهاز أو النظام لا يدعم مسح الباركود حالياً.';
+        break;
+      default:
+        message = 'تعذّر تشغيل الكاميرا:\n${error.errorDetails?.message ?? error.errorCode}';
+    }
+    return Container(
+      color: Colors.black87,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.videocam_off, color: Colors.white, size: 36),
+          const SizedBox(height: 8),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
+            onPressed: () => setState(() {}), // يعيد بناء MobileScanner فيحاول يبدأ الكاميرا من جديد
+            child: const Text('إعادة المحاولة'),
+          ),
+        ],
       ),
     );
   }
