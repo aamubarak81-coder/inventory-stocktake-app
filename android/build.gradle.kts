@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import com.android.build.gradle.LibraryExtension
 
 allprojects {
     repositories {
@@ -21,13 +20,11 @@ subprojects {
             compilerOptions.jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
         }
     }
-    if (project.name == "mobile_scanner") {
-        project.afterEvaluate {
-            project.extensions.configure<LibraryExtension> {
-                compileSdk = 36
-            }
-        }
-    }
+    // ملاحظة: كان هون إجبار compileSdk=36 على mobile_scanner، لكنه كان
+    // Workaround خاص بنسخة 3.5.7 القديمة. بعد الترقية لـ 7.2.0 (اللي
+    // بتحدد compileSdk المناسب لحالها تلقائياً)، هالإجبار صار غير لازم
+    // وممكن يسبب تعارض إصدارات (ABI/resources) وراء كراش الكاميرا
+    // "Attempt to invoke virtual method ... on a null object reference"
 }
 
 subprojects {
