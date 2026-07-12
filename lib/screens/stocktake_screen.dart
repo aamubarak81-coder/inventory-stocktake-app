@@ -241,7 +241,7 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
                       // بدل ما تضل الشاشة سودة بصمت لو صار أي خطأ (رفض
                       // صلاحية، تعارض توافق...)، نعرض السبب الحقيقي بوضوح
                       // + زر لإعادة المحاولة بعد إعطاء الصلاحية يدوياً
-                      errorBuilder: (context, error, child) {
+                      errorBuilder: (context, error) {
                         return _buildScannerError(error);
                       },
                     ),
