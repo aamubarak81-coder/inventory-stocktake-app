@@ -15,7 +15,8 @@ class StocktakeScreen extends StatefulWidget {
 
 class _StocktakeScreenState extends State<StocktakeScreen> {
   final TextEditingController _qtyController = TextEditingController();
-  final MobileScannerController _scannerController = MobileScannerController();
+  final MobileScannerController _scannerController =
+      MobileScannerController(autoStart: false);
 
   String? _scannedBarcode;
   String? _scannedProductName;
@@ -37,7 +38,22 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
       if (provider.currentSessionId == null) {
         provider.startNewSession();
       }
+      // نشغّل الكاميرا يدوياً بعد أول Frame (autoStart: false بالأعلى)
+      // عشان نتفادى مشكلة "Called state before initializing" - كانت
+      // بتصير لما الكاميرا تحاول تشتغل قبل ما الـ Widget يخلص ربطه
+      // بالكنترولر بشكل كامل
+      _startScanner();
     });
+  }
+
+  Future<void> _startScanner() async {
+    try {
+      await _scannerController.start();
+    } catch (e) {
+      // errorBuilder بيتكفل بعرض الخطأ للمستخدم، هون بس نتجنب استثناء
+      // غير معالج يوقف التطبيق
+      debugPrint('فشل تشغيل الكاميرا: $e');
+    }
   }
 
   @override
@@ -419,7 +435,7 @@ class _StocktakeScreenState extends State<StocktakeScreen> {
           const SizedBox(height: 8),
           OutlinedButton(
             style: OutlinedButton.styleFrom(foregroundColor: Colors.white),
-            onPressed: () => setState(() {}), // يعيد بناء MobileScanner فيحاول يبدأ الكاميرا من جديد
+            onPressed: _startScanner, // يعيد محاولة تشغيل الكاميرا فعلياً
             child: const Text('إعادة المحاولة'),
           ),
         ],
